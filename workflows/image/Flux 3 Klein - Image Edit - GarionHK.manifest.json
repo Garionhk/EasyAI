@@ -1,0 +1,158 @@
+{
+  "version": 3,
+  "name": "Flux 3 Klein - Image Edit",
+  "mode": "image",
+  "engine": "flux3-klein",
+  "bindings": {
+    "prompt": {
+      "node": "49",
+      "input": "prompt"
+    },
+    "image_in": {
+      "node": "11",
+      "input": "image"
+    },
+    "image_in_2": {
+      "node": "easyai_17_image1",
+      "input": "image"
+    },
+    "image_in_3": {
+      "node": "easyai_17_image2",
+      "input": "image"
+    },
+    "image_in_4": {
+      "node": "easyai_17_image3",
+      "input": "image"
+    },
+    "image_in_5": {
+      "node": "easyai_17_image4",
+      "input": "image"
+    },
+    "image_in_6": {
+      "node": "easyai_17_image5",
+      "input": "image"
+    },
+    "image_in_7": {
+      "node": "easyai_17_image6",
+      "input": "image"
+    },
+    "image_in_8": {
+      "node": "easyai_17_image7",
+      "input": "image"
+    },
+    "image_in_9": {
+      "node": "easyai_17_image8",
+      "input": "image"
+    },
+    "image_in_10": {
+      "node": "easyai_17_image9",
+      "input": "image"
+    },
+    "model": {
+      "node": "1",
+      "input": "unet_name"
+    },
+    "megapixels": {
+      "node": "17",
+      "input": "resolution.megapixels"
+    },
+    "seed": {
+      "node": "7",
+      "input": "seed"
+    },
+    "enhancer": {
+      "node": "47",
+      "input": "prompt"
+    },
+    "boxes": {
+      "node": "33",
+      "input": "editor_state"
+    },
+    "layout": {
+      "node": "49",
+      "input": "prompt"
+    },
+    "output": {
+      "node": "9",
+      "input": "filename_prefix"
+    }
+  },
+  "labels": {
+    "image_in": "Reference 1",
+    "image_in_2": "Reference 2",
+    "image_in_3": "Reference 3",
+    "image_in_4": "Reference 4",
+    "image_in_5": "Reference 5",
+    "image_in_6": "Reference 6",
+    "image_in_7": "Reference 7",
+    "image_in_8": "Reference 8",
+    "image_in_9": "Reference 9",
+    "image_in_10": "Reference 10"
+  },
+  "optional_slots": [
+    "image_in_2",
+    "image_in_3",
+    "image_in_4",
+    "image_in_5",
+    "image_in_6",
+    "image_in_7",
+    "image_in_8",
+    "image_in_9",
+    "image_in_10"
+  ],
+  "length_unit": "frames",
+  "fps": 16,
+  "grow": [
+    {
+      "node": "17",
+      "group": "images",
+      "loader": "11",
+      "names": [
+        "image0",
+        "image1",
+        "image2",
+        "image3",
+        "image4",
+        "image5",
+        "image6",
+        "image7",
+        "image8",
+        "image9"
+      ],
+      "also": [
+        {
+          "node": "50",
+          "group": "images",
+          "names": [
+            "image0",
+            "image1",
+            "image2",
+            "image3",
+            "image4",
+            "image5",
+            "image6",
+            "image7",
+            "image8",
+            "image9"
+          ]
+        }
+      ]
+    }
+  ],
+  "expose": [
+    "prompt",
+    "image_in",
+    "image_in_2",
+    "image_in_3",
+    "image_in_4",
+    "image_in_5",
+    "image_in_6",
+    "image_in_7",
+    "image_in_8",
+    "image_in_9",
+    "image_in_10"
+  ],
+  "ambiguous": [],
+  "autodetected": true,
+  "notes": ""
+}

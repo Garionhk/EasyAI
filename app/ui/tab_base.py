@@ -14,6 +14,7 @@ import random
 from pathlib import Path, PurePosixPath
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox, QFrame, QHBoxLayout, QInputDialog, QLabel, QMessageBox,
     QProgressBar, QPushButton, QScrollArea, QSpinBox, QSplitter, QTextEdit,
@@ -25,10 +26,12 @@ from app.comfy import objectinfo
 from app.i18n import plural, t
 from app.jobs import JobResult, JobWorker
 from app.modes import Mode
-from app.ratios import read_node_profile
+from app import boxes as layout_boxes
+from app.ratios import RATIOS, read_node_profile, solve_for
 from app.ui import theme
 from app.ui.widgets import (
-    ColumnScroll, DropZone, DurationPicker, MegapixelPicker, ModelPicker, PreviewPane,
+    ColumnScroll, DropZone, DurationPicker, LoraPicker, MegapixelPicker, ModelPicker,
+    PreviewPane,
     RatioPicker, ResultGallery, Switch, WorkflowList, open_in_explorer,
 )
 from app.workflows.loader import Workflow, scan
@@ -77,6 +80,11 @@ class GenerateTab(QWidget):
         self._manifest = None
         #: The picture preview. None on tabs whose result is words, not images.
         self.preview: PreviewPane | None = None
+        #: Layout boxes drawn this session, per workflow name. MOSS-Image
+        #: keeps its boxes in the prompt instead - see _moss_layout.
+        self._boxes: dict[str, list[layout_boxes.Box]] = {}
+        #: The picture size each MOSS layout's pixels were written for.
+        self._moss_frame_used: dict[str, tuple[int, int]] = {}
 
         self._build()
 
@@ -201,11 +209,48 @@ class GenerateTab(QWidget):
         self.drop_scroll.setWidget(self.drop_holder)
         layout.addWidget(self.drop_scroll)
 
+        # Layout boxes, for the workflows that read a layout (Flux 3 Klein,
+        # MOSS-Image). Drawn in their own window; only a summary lives here.
+        self.boxes_wrap = QWidget()
+        boxes_col = QVBoxLayout(self.boxes_wrap)
+        boxes_col.setContentsMargins(0, 0, 0, 0)
+        boxes_col.setSpacing(4)
+        self.boxes_heading = QLabel(t("LAYOUT BOXES (OPTIONAL)"))
+        self.boxes_heading.setObjectName("Heading")
+        boxes_col.addWidget(self.boxes_heading)
+        boxes_row = QHBoxLayout()
+        boxes_row.setSpacing(8)
+        self.boxes_btn = QPushButton(t("Draw boxes…"))
+        self.boxes_btn.setToolTip(t(
+            "Say where things go: draw a box, then describe what is in it."))
+        self.boxes_btn.clicked.connect(self._on_draw_boxes)
+        boxes_row.addWidget(self.boxes_btn)
+        self.boxes_summary = QLabel("")
+        self.boxes_summary.setObjectName("Hint")
+        boxes_row.addWidget(self.boxes_summary, 1)
+        self.boxes_clear = QPushButton(t("Clear"))
+        self.boxes_clear.clicked.connect(self._on_clear_boxes)
+        boxes_row.addWidget(self.boxes_clear)
+        boxes_col.addLayout(boxes_row)
+        self.boxes_note = QLabel("")
+        self.boxes_note.setObjectName("Hint")
+        self.boxes_note.setWordWrap(True)
+        self.boxes_note.setVisible(False)
+        boxes_col.addWidget(self.boxes_note)
+        self.boxes_wrap.setVisible(False)
+        layout.addWidget(self.boxes_wrap)
+
         # Which model, when the folder holds more than one of the family.
         self.model_picker = ModelPicker()
         self.model_picker.setVisible(False)
         self.model_picker.changed.connect(self._on_model_changed)
         layout.addWidget(self.model_picker)
+
+        # An optional LoRA, where the workflow parks a loader for one.
+        self.lora_picker = LoraPicker()
+        self.lora_picker.setVisible(False)
+        self.lora_picker.changed.connect(self._on_lora_changed)
+        layout.addWidget(self.lora_picker)
 
         # Shape / length / batch row.
         options = QHBoxLayout()
@@ -243,6 +288,7 @@ class GenerateTab(QWidget):
             "first run."))
         self.enhance_check.setChecked(True)
         self.enhance_check.setVisible(False)
+        self.enhance_check.toggled.connect(lambda _on: self._update_boxes_row())
         layout.addWidget(self.enhance_check)
 
         self.seed_lock = Switch(
@@ -305,6 +351,9 @@ class GenerateTab(QWidget):
     def _on_prompt_changed(self) -> None:
         count = len(self.prompt_box.toPlainText())
         self.prompt_counter.setText(f"{count} chars")
+        # A MOSS layout lives in the prompt, so typing can add or remove boxes.
+        if getattr(self, "boxes_wrap", None) is not None and not self.boxes_wrap.isHidden():
+            self._update_boxes_row()
 
     def _build_right(self) -> QWidget:
         panel = QWidget()
@@ -403,15 +452,18 @@ class GenerateTab(QWidget):
         return "" if parent == "." else parent
 
     def _model_options(self, manifest, workflow) -> tuple[list[str], str]:
-        """(what this loader offers from the same folder, the workflow's own).
+        """(the models related to this workflow's own, the workflow's own).
 
-        The list comes from the running engine, so it only ever contains models
-        ComfyUI can really load - and it answers per loader class, which is why
-        UNETLoader and UnetLoaderGGUF correctly get different folders.
+        Related means the same folder - ``ZI\\`` for Z-Image, ``Moss\\`` for
+        MOSS-Image - which is how these models are kept: one folder per
+        family. A model from another family would not work with the rest of
+        the workflow, so it is not offered.
+
+        The list comes from the engine - live, or as it last listed them - so
+        it only holds models ComfyUI can really load, and it answers per loader
+        class, which is why UNETLoader and UnetLoaderGGUF get different folders.
         """
         if not (manifest and manifest.has("model") and workflow):
-            return [], ""
-        if not (self._caps and self._caps.available):
             return [], ""
 
         binding = manifest.get("model")
@@ -421,7 +473,7 @@ class GenerateTab(QWidget):
         if not (own and class_type):
             return [], ""
 
-        offered = self._caps.enum_options(class_type, binding.input) or []
+        offered = self._engine_options(class_type, binding.input)
         family = self._family_of(own)
         siblings = [o for o in offered if self._family_of(o) == family]
         # The workflow's own model belongs in the list even if the engine has
@@ -429,6 +481,13 @@ class GenerateTab(QWidget):
         if own not in siblings:
             siblings.append(own)
         return sorted(siblings, key=str.lower), own
+
+    def _engine_options(self, class_type: str, field_name: str) -> list[str]:
+        """The files an input accepts: from the running engine, or else as
+        it listed them the last time it was running."""
+        if self._caps and self._caps.available:
+            return self._caps.enum_options(class_type, field_name) or []
+        return objectinfo.remembered_options(class_type, field_name)
 
     def _remembered_model(self, workflow) -> str:
         return (self.cfg.get("model_choice") or {}).get(workflow.name, "")
@@ -448,6 +507,269 @@ class GenerateTab(QWidget):
         if workflow:
             self._remember_model(workflow, model, self.model_picker._own)
 
+    # -- an optional LoRA ----------------------------------------------------
+    def _lora_options(self, manifest, workflow) -> list[str]:
+        """The LoRAs worth offering for this workflow's loader.
+
+        A LoRA only works with the model family it was trained for, and a
+        collection runs to hundreds. When the model sits in a folder - Moss        - and LoRAs sit in a folder of the same name, those are the ones
+        offered; otherwise everything the engine has.
+        """
+        if not (manifest and manifest.has("lora") and workflow):
+            return []
+        binding = manifest.get("lora")
+        class_type = str((workflow.graph.get(binding.node) or {}).get("class_type") or "")
+        offered = sorted(self._engine_options(class_type, binding.input), key=str.lower)
+        _, own_model = self._model_options(manifest, workflow)
+        family = self._family_of(own_model).lower() if own_model else ""
+        if family:
+            same = [o for o in offered if self._family_of(o).lower() == family]
+            if same:
+                return same
+        return offered
+
+    def _show_lora(self, manifest, workflow) -> None:
+        show = bool(manifest and manifest.has("lora"))
+        self.lora_picker.setVisible(show)
+        if not show:
+            return
+        remembered = (self.cfg.get("lora_choice") or {}).get(workflow.name) or {}
+        self.lora_picker.set_options(
+            self._lora_options(manifest, workflow),
+            str(remembered.get("file") or ""),
+            float(remembered.get("strength") or 1.0))
+
+    def _on_lora_changed(self) -> None:
+        workflow = self.workflow_list.current_workflow()
+        if not workflow:
+            return
+        chosen = dict(self.cfg.get("lora_choice") or {})
+        if self.lora_picker.current():
+            chosen[workflow.name] = {"file": self.lora_picker.current(),
+                                     "strength": self.lora_picker.current_strength()}
+        else:
+            chosen.pop(workflow.name, None)
+        self.cfg.set("lora_choice", chosen)
+        self.cfg.save()
+
+    # -- layout boxes --------------------------------------------------------
+    def _layout_class(self, manifest, workflow) -> str:
+        binding = manifest.get("layout") if manifest else None
+        if binding is None or not workflow:
+            return ""
+        return str((workflow.graph.get(binding.node) or {}).get("class_type") or "").lower()
+
+    def _boxes_background_slot(self, manifest, workflow) -> str:
+        """The file slot whose picture the boxes are drawn on, if any.
+
+        An edit's canvas shows the picture being edited - the box node's
+        background - so the boxes land on what the user is looking at.
+        """
+        binding = manifest.get("boxes") if manifest else None
+        if binding is None or not workflow:
+            return ""
+        background = ((workflow.graph.get(binding.node) or {}).get("inputs") or {}).get("background")
+        if not (isinstance(background, list) and background):
+            return ""
+        loader = str(background[0])
+        for key in manifest.file_slots():
+            if any(b.node == loader for b in manifest.all(key)):
+                return key
+        return ""
+
+    # -- MOSS-Image: the layout is the prompt --------------------------------
+    def _is_moss_layout(self, manifest, workflow) -> bool:
+        return "moss" in self._layout_class(manifest, workflow)
+
+    def _moss_frame(self, manifest, workflow) -> tuple[int, int]:
+        """The size of the picture MOSS-Image will make, as its size node will
+        work it out - the layout's pixels are measured on it."""
+        profile = None
+        if manifest and manifest.has("ratio"):
+            profile = read_node_profile(workflow.graph.get(manifest.get("ratio").node))
+        megapixels, multiple = profile if profile else (2.0, 16)
+        if not self.megapixels.isHidden():
+            megapixels = self.megapixels.megapixels()
+        ratio = self.ratio_picker.current_ratio() if self.ratio_picker.isEnabled() else "1:1"
+        return solve_for(ratio, megapixels, multiple)
+
+    def _current_boxes(self, manifest, workflow) -> list[layout_boxes.Box]:
+        """The boxes in force: drawn for Flux 3, read from the prompt for MOSS."""
+        if self._is_moss_layout(manifest, workflow):
+            layout = layout_boxes.parse_layout(self.prompt_box.toPlainText())
+            if layout is None:
+                return []
+            frame = (self._moss_frame_used.get(workflow.name)
+                     or self._moss_frame(manifest, workflow))
+            return layout_boxes.layout_to_boxes(layout, *frame)
+        return self._boxes.get(workflow.name, [])
+
+    def _write_moss_layout(self, workflow, boxes, frame) -> None:
+        """Put the boxes into the prompt as a MOSS layout, keeping its summary.
+
+        With no prompt at all the layout is the whole prompt. With plain words
+        they become the layout's caption, as ComfyUI's layout node does. With
+        no boxes left, a layout that only had a caption goes back to plain
+        words.
+        """
+        text = self.prompt_box.toPlainText()
+        layout = layout_boxes.parse_layout(text)
+        if boxes:
+            new = layout_boxes.boxes_to_layout(
+                boxes, *frame, base=layout,
+                caption="" if layout else text.strip())
+            self.prompt_box.setPlainText(layout_boxes.layout_text(new))
+            self._moss_frame_used[workflow.name] = tuple(frame)
+        elif layout is not None:
+            summary = layout.get("summary") if isinstance(layout.get("summary"), dict) else {}
+            if set(summary) <= {"caption"} and set(layout) <= {
+                    "summary", "items", "bbox_coord_space", "bbox_format"}:
+                self.prompt_box.setPlainText(layout_boxes.layout_caption(layout))
+            else:
+                layout["items"] = []
+                self.prompt_box.setPlainText(layout_boxes.layout_text(layout))
+            self._moss_frame_used.pop(workflow.name, None)
+
+    def _update_boxes_row(self) -> None:
+        manifest = self._manifest
+        workflow = self.workflow_list.current_workflow()
+        show = bool(manifest and manifest.has("boxes") and manifest.has("layout"))
+        self.boxes_wrap.setVisible(show)
+        if not show or not workflow:
+            return
+        drawn = self._current_boxes(manifest, workflow)
+        objects, texts = layout_boxes.summary(drawn)
+        if not drawn:
+            self.boxes_summary.setText(t("None — the prompt alone decides the layout."))
+        else:
+            parts = [plural(objects, "{n} box", "{n} boxes")]
+            if texts:
+                parts.append(plural(texts, "{n} text", "{n} texts"))
+            if self._is_moss_layout(manifest, workflow):
+                parts.append(t("written in the prompt"))
+            self.boxes_summary.setText(", ".join(parts))
+        self.boxes_clear.setEnabled(bool(drawn))
+        self.boxes_btn.setText(t("Edit boxes…") if drawn else t("Draw boxes…"))
+
+        warn = bool(drawn and not self.enhance_check.isHidden()
+                    and self.enhance_check.isChecked())
+        self.boxes_note.setVisible(warn)
+        if warn:
+            self.boxes_note.setText(t(
+                "The AI wording helper is on, and it may rewrite the layout. "
+                "Turn it off if the boxes must be followed exactly."))
+
+    def _on_draw_boxes(self) -> None:
+        from app.ui.box_editor import BoxEditor
+
+        workflow = self.workflow_list.current_workflow()
+        manifest = self._manifest
+        if not (workflow and manifest):
+            return
+
+        background = None
+        slot = self._boxes_background_slot(manifest, workflow)
+        if slot:
+            zone = self.drop_zones.get(slot)
+            path = zone.path() if zone else ""
+            if not path:
+                QMessageBox.information(self, t("Almost there"), t(
+                    "Attach “{label}” first - the boxes are drawn on it.",
+                    label=manifest.label_for(slot)))
+                return
+            background = QPixmap(path)
+
+        moss = self._is_moss_layout(manifest, workflow)
+        note = ""
+        if moss:
+            # The canvas is the picture MOSS will make, at its real shape.
+            frame = self._moss_frame(manifest, workflow)
+            aspect = frame
+            layout = layout_boxes.parse_layout(self.prompt_box.toPlainText())
+            written_for = self._moss_frame_used.get(workflow.name) or frame
+            if layout is not None:
+                need_w, need_h = layout_boxes.layout_extent(layout)
+                if need_w > written_for[0] + 2 or need_h > written_for[1] + 2:
+                    note = t(
+                        "This layout was written for a picture at least "
+                        "{need} px, but the shape chosen makes {have} px, so "
+                        "boxes past the edge are cut to fit. To keep them as "
+                        "written, choose a matching shape and detail first.",
+                        need=f"{need_w} × {need_h}",
+                        have=f"{written_for[0]} × {written_for[1]}")
+        else:
+            ratio = self.ratio_picker.current_ratio() if self.ratio_picker.isEnabled() else "1:1"
+            aspect = RATIOS.get(ratio, (1, 1))
+        layout_class = self._layout_class(manifest, workflow)
+        editor = BoxEditor(
+            self._current_boxes(manifest, workflow),
+            aspect=aspect,
+            background=background,
+            allow_character=moss,
+            cites_objects="flux3" in layout_class,
+            note=note,
+            parent=self)
+        if not editor.exec():
+            return
+        drawn = editor.boxes()
+        if moss:
+            self._write_moss_layout(workflow, drawn, frame)
+        else:
+            self._boxes[workflow.name] = drawn
+        # MOSS-Image's own template keeps the prompt helper off with boxes: it
+        # rewrites the layout away. Flux 3's is built to read it, so it stays.
+        if drawn and moss and self.enhance_check.isChecked() \
+                and not self.enhance_check.isHidden():
+            self.enhance_check.setChecked(False)
+        self._update_boxes_row()
+
+    def _on_clear_boxes(self) -> None:
+        workflow = self.workflow_list.current_workflow()
+        if workflow and self._is_moss_layout(self._manifest, workflow):
+            self._write_moss_layout(workflow, [], (0, 0))
+        elif workflow:
+            self._boxes.pop(workflow.name, None)
+        self._update_boxes_row()
+
+    def use_read_prompt(self, found) -> str:
+        """Take a prompt read back from a picture, choosing its workflow.
+
+        Returns the name of the workflow chosen, or "" when the picture's
+        workflow is not on this tab and only the words were taken. A MOSS-Image
+        layout keeps the size of the picture it made, so the box editor opens
+        with every box where it was - and the boxes move with the shape if
+        another one is picked afterwards.
+        """
+        name = getattr(found, "workflow_name", "") or ""
+        chosen = ""
+        for index, workflow in enumerate(self.workflows):
+            if name and workflow.name == name:
+                self.workflow_list.setCurrentRow(index)
+                chosen = name
+                break
+        self.prompt_box.setPlainText(found.prompt)
+        workflow = self.workflow_list.current_workflow()
+        size = getattr(found, "size", None)
+        if workflow and size and self._is_moss_layout(self._manifest, workflow) \
+                and layout_boxes.parse_layout(found.prompt) is not None:
+            self._moss_frame_used[workflow.name] = tuple(size)
+            self._match_shape(size)
+            # As when boxes are drawn: MOSS's helper would rewrite the layout.
+            if not self.enhance_check.isHidden() and self.enhance_check.isChecked():
+                self.enhance_check.setChecked(False)
+        self._update_boxes_row()
+        return chosen
+
+    def _match_shape(self, size) -> None:
+        """Pick the shape a picture has, when it is one of the shapes offered."""
+        width, height = size
+        if not (width and height) or not self.ratio_picker.isEnabled():
+            return
+        for ratio, (rw, rh) in RATIOS.items():
+            if abs((width / height) / (rw / rh) - 1) < 0.02:
+                self.ratio_picker.set_ratio(ratio)
+                break
+
     def _on_workflow_picked(self, wf: Workflow) -> None:
         """Reshape the middle column to match what this workflow can do."""
         manifest = wf.manifest
@@ -466,6 +788,12 @@ class GenerateTab(QWidget):
 
         self._show_negative(manifest, wf)
         self._rebuild_drop_zones(manifest, wf)
+        self._show_lora(manifest, wf)
+
+        # The model file this workflow generates with - on every tab, since
+        # every workflow has one. Only models of the same family are offered.
+        siblings, own = self._model_options(manifest, wf)
+        self.model_picker.set_options(siblings, own, self._remembered_model(wf))
 
         if self.mode.uses_ratio:
             can_set = bool(manifest and manifest.can_set_ratio)
@@ -473,12 +801,6 @@ class GenerateTab(QWidget):
             # A workflow that picks its size through a chooser node can only
             # offer the shapes that node knows about, so hide the rest rather
             # than letting the user select one that silently does nothing.
-            # Which models of the same family this engine can offer. Hidden
-            # entirely when the folder holds only the one the workflow names.
-            options, own = self._model_options(manifest, wf)
-            self.model_picker.set_options(
-                options, own, self._remembered_model(wf))
-
             self._ratio_options = self._ratio_options_for(manifest)
             self.ratio_picker.set_allowed(_ratio_heads(self._ratio_options))
             self.ratio_picker.set_node_profile(self._ratio_profile_for(manifest, wf))
@@ -515,6 +837,12 @@ class GenerateTab(QWidget):
         self.enhance_check.setVisible(has_enhancer)
         if has_enhancer:
             self.enhance_check.setChecked(bool(self.cfg.get("use_prompt_enhancer")))
+            # MOSS-Image's helper rewrites a drawn layout away, so with boxes
+            # it starts off, as in ComfyUI's own template.
+            if self._is_moss_layout(manifest, wf) \
+                    and self._current_boxes(manifest, wf):
+                self.enhance_check.setChecked(False)
+        self._update_boxes_row()
 
         if wf.ready:
             self.status_label.setText("")
@@ -755,6 +1083,16 @@ class GenerateTab(QWidget):
 
     def _collect_request(self, wf: Workflow) -> GenerationRequest:
         manifest = wf.manifest
+        moss = bool(manifest.has("boxes") and self._is_moss_layout(manifest, wf))
+        if moss:
+            # The layout's pixels belong to the size it was drawn for. If the
+            # shape or detail has changed since, move the boxes with it.
+            used = self._moss_frame_used.get(wf.name)
+            frame = self._moss_frame(manifest, wf)
+            if used and tuple(used) != tuple(frame):
+                self.prompt_box.setPlainText(layout_boxes.rescale_layout(
+                    self.prompt_box.toPlainText(), used, frame))
+                self._moss_frame_used[wf.name] = tuple(frame)
         request = GenerationRequest(prompt=self.prompt_box.toPlainText().strip())
         # Sent whenever the box is offered: it starts out holding the
         # workflow's own text, so leaving it alone changes nothing, and
@@ -764,7 +1102,7 @@ class GenerateTab(QWidget):
 
         # Snapshotted here, like everything else, so a queued item keeps the
         # model that was chosen when Create was pressed.
-        if self.model_picker.isVisible() and manifest.has("model"):
+        if not self.model_picker.isHidden() and manifest.has("model"):
             chosen = self.model_picker.current()
             if chosen and chosen != self.model_picker._own:
                 request.model = chosen
@@ -775,6 +1113,14 @@ class GenerateTab(QWidget):
         for key, zone in self.drop_zones.items():
             if zone.path():
                 request.files[key] = zone.path()
+
+        if manifest.has("lora"):
+            request.lora = self.lora_picker.current()
+            request.lora_strength = self.lora_picker.current_strength()
+        if manifest.has("boxes") and manifest.has("layout"):
+            # MOSS's layout is already in the prompt, so the layout node is
+            # taken out and the prompt goes to the model as written.
+            request.boxes = [] if moss else list(self._boxes.get(wf.name, []))
 
         if self.mode.uses_megapixels and manifest.can_set_megapixels:
             request.megapixels = self.megapixels.megapixels()
@@ -971,8 +1317,13 @@ class GenerateTab(QWidget):
         self.cancel_btn.setText(t("Stop"))
         self.shortcut_hint.setText(t("CTRL + ENTER  to run"))
 
+        self.boxes_heading.setText(t("LAYOUT BOXES (OPTIONAL)"))
+        self.boxes_btn.setToolTip(t(
+            "Say where things go: draw a box, then describe what is in it."))
+        self.boxes_clear.setText(t("Clear"))
+
         for widget in (self.ratio_picker, self.megapixels, self.duration,
-                       self.gallery):
+                       self.gallery, self.lora_picker, self.model_picker):
             if hasattr(widget, "retranslate"):
                 widget.retranslate()
         for zone in self.drop_zones.values():

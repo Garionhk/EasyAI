@@ -51,6 +51,14 @@ class GenerationRequest:
     #: None = leave the workflow as its author set it up; False = route around
     #: the prompt enhancer; True = use it.
     enhance: bool | None = None
+    #: An optional LoRA: None leaves the workflow as it is, "" means none (the
+    #: loader is taken out), anything else is a file the engine offered.
+    lora: str | None = None
+    lora_strength: float | None = None
+    #: Layout boxes from EasyAI's box editor, as app.boxes.Box objects. None
+    #: leaves the workflow alone; an empty list means "no boxes", and the
+    #: layout node is taken out so the prompt runs as plain text.
+    boxes: list | None = None
     filename_prefix: str | None = None
     #: Filled in by the job runner after uploading, keyed by the same slots.
     uploaded: dict[str, str] = field(default_factory=dict)
@@ -261,6 +269,64 @@ def _renumber_group(graph: dict, consumer_id: str, group: str, first: int = 0) -
         inputs[f"{group}.{stem}{position}"] = value
 
 
+def _readers(graph: dict, node_id: str) -> list[tuple[str, str]]:
+    """(consumer id, input name) for every input wired to a node's output."""
+    found = []
+    for other_id, other in graph.items():
+        if str(other_id) == node_id or not isinstance(other, dict):
+            continue
+        for field_name, value in (other.get("inputs") or {}).items():
+            if isinstance(value, list) and value and str(value[0]) == node_id:
+                found.append((str(other_id), field_name))
+    return found
+
+
+def _bypass_node(graph: dict, node_id: str, replacement) -> int:
+    """Point everything reading from a node at ``replacement``, then drop it.
+
+    ``replacement`` is a link (``["12", 0]``) or a literal value. Returns how
+    many inputs were rewired.
+    """
+    readers = _readers(graph, node_id)
+    for consumer, field_name in readers:
+        graph[consumer]["inputs"][field_name] = copy.deepcopy(replacement)
+    graph.pop(node_id, None)
+    return len(readers)
+
+
+#: ComfySwitchNode picks one of two wired values by a boolean.
+_SWITCH_CLASSES = ("comfyswitchnode",)
+
+
+def _enhancer_switches(graph: dict, node_id: str) -> list[tuple[str, bool]]:
+    """(switch id, value that selects the enhancer) for each switch it feeds.
+
+    Flux 3 Klein's and MOSS-Image's workflows do not wire the enhancer straight
+    to the encoder; a switch chooses between the enhanced prompt and the plain
+    one. Flux 3 ships with it on the enhancer's side, MOSS on the plain side -
+    so leaving the switch alone made the enhancer box do nothing for MOSS.
+    """
+    found = []
+    for consumer, field_name in _readers(graph, node_id):
+        node = graph.get(consumer) or {}
+        if str(node.get("class_type", "")).lower() in _SWITCH_CLASSES \
+                and field_name in ("on_true", "on_false"):
+            found.append((consumer, field_name == "on_true"))
+    return found
+
+
+def use_enhancer(graph: dict, manifest: Manifest, report: PatchReport) -> None:
+    """Make sure the enhancer's output is the one that gets used."""
+    binding = manifest.get("enhancer")
+    if binding is None:
+        return
+    for switch_id, value in _enhancer_switches(graph, binding.node):
+        inputs = graph[switch_id].setdefault("inputs", {})
+        if not isinstance(inputs.get("switch"), list):
+            inputs["switch"] = value
+    report.applied.append("enhancer:on")
+
+
 def bypass_enhancer(graph: dict, manifest: Manifest, prompt_text: str,
                     report: PatchReport) -> bool:
     """Route the prompt around the enhancer node and drop it from the graph.
@@ -286,16 +352,7 @@ def bypass_enhancer(graph: dict, manifest: Manifest, prompt_text: str,
     inlined = not isinstance(upstream, list)
     replacement = upstream if isinstance(upstream, list) else prompt_text
 
-    rewired = 0
-    for other_id, other in graph.items():
-        if other_id == binding.node or not isinstance(other, dict):
-            continue
-        for field_name, value in list((other.get("inputs") or {}).items()):
-            if isinstance(value, list) and value and str(value[0]) == binding.node:
-                other["inputs"][field_name] = replacement
-                rewired += 1
-
-    graph.pop(binding.node, None)
+    rewired = _bypass_node(graph, binding.node, replacement)
     report.applied.append("enhancer:off")
     if rewired == 0:
         report.skipped.append(
@@ -361,6 +418,9 @@ def apply(graph: dict, manifest: Manifest, request: GenerationRequest,
             prompt_already_written = bypass_enhancer(
                 patched, manifest, request.prompt or "", report)
             report.enhancer = False
+        elif request.enhance is True:
+            use_enhancer(patched, manifest, report)
+            report.enhancer = True
         else:
             report.enhancer = True
             report.applied.append("enhancer:on")
@@ -387,6 +447,9 @@ def apply(graph: dict, manifest: Manifest, request: GenerationRequest,
     # model is loaded.
     if request.model and manifest.has("model"):
         _set(patched, manifest.all("model"), request.model, report, "model")
+
+    # --- an optional LoRA -------------------------------------------------
+    apply_lora(patched, manifest, request, report)
 
     # --- size -------------------------------------------------------------
     # A megapixels input means the workflow sizes itself from a pixel budget,
@@ -429,7 +492,130 @@ def apply(graph: dict, manifest: Manifest, request: GenerationRequest,
     if request.filename_prefix:
         _set(patched, manifest.all("output"), request.filename_prefix, report, "output")
 
+    # --- layout boxes -----------------------------------------------------
+    # Last, because the canvas has to match the size worked out above.
+    apply_boxes(patched, manifest, request, report)
+
     return patched, report
+
+
+def apply_lora(graph: dict, manifest: Manifest, request: GenerationRequest,
+               report: PatchReport) -> None:
+    """Load the chosen LoRA, or take the loader out when none is wanted.
+
+    A LoRA loader cannot be told "no file": ComfyUI checks the name against
+    the files it has, and the author's file is on the author's machine. So
+    "None" means routing the model around the loader entirely.
+    """
+    binding = manifest.get("lora")
+    if binding is None or request.lora is None:
+        return
+    node = graph.get(binding.node)
+    if not isinstance(node, dict):
+        report.skipped.append(f"lora: node {binding.node} is not in this workflow")
+        return
+    if not request.lora:
+        source = (node.get("inputs") or {}).get("model")
+        if isinstance(source, list):
+            _bypass_node(graph, binding.node, source)
+            report.applied.append("lora:none")
+        else:
+            report.skipped.append("lora: the loader has no model input to route around")
+        return
+    _set(graph, [binding], request.lora, report, "lora")
+    strength = 1.0 if request.lora_strength is None else float(request.lora_strength)
+    _set(graph, manifest.all("lora_strength"), strength, report, "lora_strength")
+
+
+def _picture_size(path) -> tuple[int, int] | None:
+    try:
+        from PIL import Image
+        with Image.open(path) as picture:
+            return picture.size
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def _snap16(value: float) -> int:
+    return max(64, int(round(value / 16)) * 16)
+
+
+def _canvas_size(manifest: Manifest, node: dict, request: GenerationRequest,
+                 report: PatchReport) -> tuple[int, int]:
+    """The pixel grid the boxes are drawn on.
+
+    An edit draws on its picture - the canvas's background is the reference
+    the user attached - so the canvas takes that picture's shape. A new image
+    draws on the frame being generated, whose size the steps above settled.
+    """
+    inputs = node.get("inputs") or {}
+    background = inputs.get("background")
+    if isinstance(background, list) and background:
+        loader = str(background[0])
+        for key in manifest.file_slots():
+            path = request.files.get(key)
+            if path and any(b.node == loader for b in manifest.all(key)):
+                size = _picture_size(path)
+                if size:
+                    return _snap16(size[0]), _snap16(size[1])
+    if report.width and report.height:
+        return int(report.width), int(report.height)
+    width, height = inputs.get("width"), inputs.get("height")
+    if isinstance(width, int) and isinstance(height, int):
+        return width, height
+    return 1024, 1024
+
+
+def apply_boxes(graph: dict, manifest: Manifest, request: GenerationRequest,
+                report: PatchReport) -> None:
+    """Hand EasyAI's layout boxes to the workflow, or take the layout out."""
+    from app import boxes as _boxes
+
+    canvas_binding, layout_binding = manifest.get("boxes"), manifest.get("layout")
+    if canvas_binding is None or layout_binding is None or request.boxes is None:
+        return
+    canvas = graph.get(canvas_binding.node)
+    layout = graph.get(layout_binding.node)
+    if not isinstance(canvas, dict) or not isinstance(layout, dict):
+        report.skipped.append("boxes: the box nodes are not in this workflow")
+        return
+
+    if not request.boxes:
+        # No boxes: the prompt goes on as plain text. A layout node fed a link
+        # is routed around; one holding the prompt itself becomes a plain text
+        # node in place, so whatever reads it still reads the same words.
+        prompt = (layout.get("inputs") or {}).get(layout_binding.input or "prompt")
+        if isinstance(prompt, list):
+            _bypass_node(graph, layout_binding.node, prompt)
+        else:
+            graph[layout_binding.node] = {
+                "class_type": "PrimitiveStringMultiline",
+                "inputs": {"value": prompt if isinstance(prompt, str) else ""},
+                "_meta": {"title": (layout.get("_meta") or {}).get("title") or "Prompt"},
+            }
+        if not _readers(graph, canvas_binding.node):
+            graph.pop(canvas_binding.node, None)
+        report.applied.append("boxes:none")
+        return
+
+    width, height = _canvas_size(manifest, canvas, request, report)
+    inputs = canvas.setdefault("inputs", {})
+    for name, value in (("width", width), ("height", height)):
+        if not isinstance(inputs.get(name), list):
+            inputs[name] = value
+    # Lists in an API prompt are links; ComfyUI takes a literal list only
+    # wrapped like this, which is also how it exports one.
+    inputs[canvas_binding.input or "editor_state"] = {
+        "__value__": _boxes.to_editor_state(request.boxes, width, height)}
+    inputs["last_incoming"] = {"__value__": []}
+
+    layout_inputs = layout.setdefault("inputs", {})
+    for name, value in (("width", width), ("height", height)):
+        if name in layout_inputs and not isinstance(layout_inputs[name], list):
+            layout_inputs[name] = value
+    if "character_boxes" in layout_inputs:
+        layout_inputs["character_boxes"] = _boxes.character_numbers(request.boxes)
+    report.applied.append(f"boxes:{len(request.boxes)}")
 
 
 def missing_inputs(manifest: Manifest, request: GenerationRequest) -> list[str]:

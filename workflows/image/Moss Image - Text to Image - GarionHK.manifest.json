@@ -1,0 +1,67 @@
+{
+  "version": 3,
+  "name": "Moss Image - Text to Image",
+  "mode": "image",
+  "engine": "moss",
+  "bindings": {
+    "prompt": {
+      "node": "18:17",
+      "input": "value"
+    },
+    "negative": {
+      "node": "18:5",
+      "input": "text"
+    },
+    "model": {
+      "node": "18:1",
+      "input": "unet_name"
+    },
+    "lora": {
+      "node": "18:26",
+      "input": "lora_name"
+    },
+    "lora_strength": {
+      "node": "18:26",
+      "input": "strength_model"
+    },
+    "ratio": {
+      "node": "19",
+      "input": "aspect_ratio"
+    },
+    "megapixels": {
+      "node": "19",
+      "input": "megapixels"
+    },
+    "seed": {
+      "node": "18:7",
+      "input": "seed"
+    },
+    "enhancer": {
+      "node": "18:11",
+      "input": "prompt"
+    },
+    "boxes": {
+      "node": "20",
+      "input": "editor_state"
+    },
+    "layout": {
+      "node": "21",
+      "input": "prompt"
+    },
+    "output": {
+      "node": "9",
+      "input": "filename_prefix"
+    }
+  },
+  "labels": {},
+  "optional_slots": [],
+  "length_unit": "frames",
+  "fps": 16,
+  "grow": [],
+  "expose": [
+    "prompt"
+  ],
+  "ambiguous": [],
+  "autodetected": true,
+  "notes": ""
+}

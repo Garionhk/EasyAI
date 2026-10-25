@@ -175,7 +175,53 @@ def fetch(client: ComfyClient, refresh: bool = False) -> Capabilities:
         raw = client.object_info(refresh=refresh)
     except ComfyError as e:
         return Capabilities(available=False, error=str(e))
-    return Capabilities(node_types=set(raw.keys()), raw=raw, available=True)
+    caps = Capabilities(node_types=set(raw.keys()), raw=raw, available=True)
+    remember_model_lists(caps)
+    return caps
+
+
+# --- model lists kept for when ComfyUI is closed -----------------------------
+#: The file lists ComfyUI last offered for each model input. The Model and
+#: LoRA dropdowns come from the running engine, so with ComfyUI closed they
+#: used to vanish - MOSS-Image's four diffusion models among them - right when
+#: someone was choosing what to run next.
+MODEL_LISTS_FILE = "engine-models.json"
+
+
+def _model_lists_path():
+    from app.paths import data_dir
+    return data_dir() / MODEL_LISTS_FILE
+
+
+def remember_model_lists(caps: Capabilities, path=None) -> None:
+    """Write down every model list the engine offers. Best effort."""
+    import json
+    lists: dict[str, dict[str, list[str]]] = {}
+    for class_type in caps.raw:
+        for field_name in MODEL_FIELDS:
+            options = caps.enum_options(class_type, field_name)
+            if options:
+                lists.setdefault(class_type, {})[field_name] = options
+    if not lists:
+        return
+    target = path or _model_lists_path()
+    try:
+        tmp = target.with_suffix(".tmp")
+        tmp.write_text(json.dumps(lists, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(target)
+    except OSError:
+        pass
+
+
+def remembered_options(class_type: str, field_name: str, path=None) -> list[str]:
+    """What the engine offered for this input last time it was running."""
+    import json
+    try:
+        lists = json.loads((path or _model_lists_path()).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    found = (lists.get(class_type) or {}).get(field_name) or []
+    return [str(x) for x in found] if isinstance(found, list) else []
 
 
 class FolderMap:
@@ -254,7 +300,12 @@ def check(workflow: Workflow, caps: Capabilities) -> Workflow:
     if not workflow.loadable or not caps.available:
         return workflow
 
-    for node in workflow.graph.values():
+    # An optional LoRA is the user's to pick, and "None" takes its loader out,
+    # so the file the author parked there is not something to install.
+    manifest = getattr(workflow, "manifest", None)
+    optional = {(b.node, b.input) for b in manifest.all("lora")} if manifest else set()
+
+    for node_id, node in workflow.graph.items():
         if not isinstance(node, dict):
             continue
         class_type = str(node.get("class_type") or "")
@@ -268,6 +319,8 @@ def check(workflow: Workflow, caps: Capabilities) -> Workflow:
 
         for field_name, value in (node.get("inputs") or {}).items():
             if field_name not in MODEL_FIELDS or not isinstance(value, str) or not value:
+                continue
+            if (str(node_id), field_name) in optional:
                 continue
             options = caps.model_options(class_type, field_name)
             if options is None:

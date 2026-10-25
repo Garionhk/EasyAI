@@ -13,8 +13,8 @@
       "input": "text"
     },
     "model": {
-      "node": "405:371",
-      "input": "model_name"
+      "node": "405:384",
+      "input": "unet_name"
     },
     "ratio": {
       "node": "409",
@@ -51,6 +51,7 @@
   "optional_slots": [],
   "length_unit": "seconds",
   "fps": 24,
+  "grow": [],
   "expose": [
     "prompt",
     "length"

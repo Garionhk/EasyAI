@@ -16,10 +16,20 @@
       "node": "2",
       "input": "video"
     },
-    "model": {
-      "node": "672:435",
-      "input": "ckpt_name"
-    },
+    "model": [
+      {
+        "node": "672:423",
+        "input": "ckpt_name"
+      },
+      {
+        "node": "672:435",
+        "input": "ckpt_name"
+      },
+      {
+        "node": "672:445",
+        "input": "ckpt_name"
+      }
+    ],
     "width": {
       "node": "9",
       "input": "value"
@@ -43,6 +53,7 @@
   "optional_slots": [],
   "length_unit": "frames",
   "fps": 24,
+  "grow": [],
   "expose": [
     "prompt",
     "video_in"

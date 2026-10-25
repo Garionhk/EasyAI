@@ -147,6 +147,7 @@ class MainWindow(QMainWindow):
         # why it sits apart from the three that do.
         self.read_tab = ReadTab(self.cfg)
         self.read_tab.send_to_requested.connect(self._send_prompt_to)
+        self.read_tab.send_read_requested.connect(self._send_read_to)
         self.read_tab.status_message.connect(self._set_status)
         self.tabs.addTab(self.read_tab, "🔎  " + t("Read a prompt"))
 
@@ -345,6 +346,20 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentWidget(tab)
         tab.prompt_box.setFocus()
         self._set_status(t("Prompt sent to {tab}.", tab=t(MODES[mode_key].label)))
+
+    def _send_read_to(self, mode_key: str, found) -> None:
+        """A prompt read back from a picture, into the workflow that made it."""
+        tab = self.tab_by_mode.get(mode_key)
+        if not tab:
+            return
+        picked = tab.use_read_prompt(found)
+        self.tabs.setCurrentWidget(tab)
+        tab.prompt_box.setFocus()
+        if picked:
+            self._set_status(t("Prompt sent to {tab}, with {name} chosen.",
+                               tab=t(MODES[mode_key].label), name=picked))
+        else:
+            self._set_status(t("Prompt sent to {tab}.", tab=t(MODES[mode_key].label)))
 
     def _open_manifest_editor(self, workflow) -> None:
         editor = ManifestEditor(workflow, self)

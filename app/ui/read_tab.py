@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QApplication, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
+    QApplication, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QSpinBox,
     QVBoxLayout, QWidget,
 )
 
@@ -28,6 +28,10 @@ class ReadTab(QWidget):
 
     #: (mode key, prompt) - the window already knows how to deliver this.
     send_to_requested = Signal(str, str)
+    #: (mode key, PromptRead) - the prompt together with the workflow that
+    #: made it and the picture's size, so the window can pick that workflow
+    #: and a MOSS-Image layout opens in the box editor where it was drawn.
+    send_read_requested = Signal(str, object)
     status_message = Signal(str)
 
     def __init__(self, cfg, parent=None):
@@ -35,6 +39,7 @@ class ReadTab(QWidget):
         self.cfg = cfg
         self._workflows: list = []
         self._prompt: str = ""
+        self._found = None
 
         row = QHBoxLayout(self)
         row.setContentsMargins(16, 14, 16, 14)
@@ -73,9 +78,25 @@ class ReadTab(QWidget):
         self.source.setObjectName("Hint")
         column.addWidget(self.source)
 
+        heading = QHBoxLayout()
         self.prompt_heading = QLabel(t("THE PROMPT"))
         self.prompt_heading.setObjectName("Heading")
-        column.addWidget(self.prompt_heading)
+        heading.addWidget(self.prompt_heading)
+        heading.addStretch(1)
+        # A batched prompt holds one prompt per line; this picks which.
+        self.line_label = QLabel(t("Line"))
+        self.line_label.setObjectName("Hint")
+        heading.addWidget(self.line_label)
+        self.line_spin = QSpinBox()
+        self.line_spin.setMinimum(1)
+        self.line_spin.valueChanged.connect(self._on_line)
+        heading.addWidget(self.line_spin)
+        self.line_total = QLabel("")
+        self.line_total.setObjectName("Hint")
+        heading.addWidget(self.line_total)
+        for widget in (self.line_label, self.line_spin, self.line_total):
+            widget.setVisible(False)
+        column.addLayout(heading)
 
         self.prompt_box = QPlainTextEdit()
         self.prompt_box.setReadOnly(True)
@@ -160,6 +181,7 @@ class ReadTab(QWidget):
 
         if not self._workflows:
             self._load_workflows()
+        self._path = path
         found = read_prompt(path, self._workflows)
 
         if found is None:
@@ -169,6 +191,7 @@ class ReadTab(QWidget):
                 "most websites."))
             return
 
+        self._found = found
         self._prompt = found.prompt
         self.prompt_box.setPlainText(found.prompt)
         self._set_have_prompt(True)
@@ -181,10 +204,45 @@ class ReadTab(QWidget):
             self.source.setText(
                 t("best guess — this workflow is not one of yours"))
             self.source.setStyleSheet(f"color:{theme.WARN};")
+        self._show_batch(found)
         self.status_message.emit(t("Read the prompt from {file}.",
                                    file=path.name))
 
+    def _show_batch(self, found) -> None:
+        """Offer every line of a batched prompt, starting at the file's own."""
+        batch = bool(found and found.batch)
+        for widget in (self.line_label, self.line_spin, self.line_total):
+            widget.setVisible(batch)
+        if not batch:
+            return
+        self.line_spin.blockSignals(True)
+        self.line_spin.setMaximum(len(found.batch))
+        self.line_spin.setValue(found.index + 1)
+        self.line_spin.blockSignals(False)
+        self.line_total.setText(t("of {n}", n=len(found.batch)))
+        note = (t("this picture's line, found from its place in the batch")
+                if found.index_certain else
+                t("could not tell which line made this picture - check it"))
+        self.source.setText(self.source.text() + "   ·   " + note)
+
+    def _on_line(self, number: int) -> None:
+        from app.prompts import _moss_layout, graph_in
+
+        found = self._found
+        if not (found and found.batch and 1 <= number <= len(found.batch)):
+            return
+        found.index = number - 1
+        text = found.batch[found.index]
+        graph = graph_in(self._path) if getattr(self, "_path", None) else None
+        if graph:
+            text = _moss_layout(graph, text, found.size)
+        found.prompt = text.strip()
+        self._prompt = found.prompt
+        self.prompt_box.setPlainText(found.prompt)
+
     def _show_nothing(self, message: str) -> None:
+        self._found = None
+        self._show_batch(None)
         self._prompt = ""
         self.prompt_box.setPlainText("")
         self.source.setText(message)
@@ -198,7 +256,11 @@ class ReadTab(QWidget):
         self.status_message.emit(t("Prompt copied."))
 
     def _send(self, mode_key: str) -> None:
-        if self._prompt:
+        if not self._prompt:
+            return
+        if self._found is not None:
+            self.send_read_requested.emit(mode_key, self._found)
+        else:
             self.send_to_requested.emit(mode_key, self._prompt)
 
     # -------------------------------------------------------------- language
@@ -206,6 +268,9 @@ class ReadTab(QWidget):
         self.drop.retranslate()
         self.gallery.retranslate()
         self.prompt_heading.setText(t("THE PROMPT"))
+        self.line_label.setText(t("Line"))
+        if self._found and self._found.batch:
+            self.line_total.setText(t("of {n}", n=len(self._found.batch)))
         self.prompt_box.setPlaceholderText(
             t("Nothing read yet — choose a file on the left."))
         self.copy_btn.setText(t("Copy"))

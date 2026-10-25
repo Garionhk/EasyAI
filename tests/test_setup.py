@@ -563,8 +563,15 @@ def test_private_addresses_are_recognised():
 
 
 def test_the_mirror_removes_the_need_for_a_key(catalog):
-    """What the whole exercise is for: Image should need no account at all."""
-    assert catalog.gated(["image"]) == []
+    """What the whole exercise is for: only Flux 3 Klein should need an account.
+
+    Its files come from Black Forest Labs' own repository, behind their
+    licence, and are not mirrored - redistributing them is not ours to do.
+    Every other image model needs no account at all.
+    """
+    gated = catalog.gated(["image"])
+    assert gated
+    assert all("black-forest-labs/flux-3-image-klein-comfy/" in m.url for m in gated)
     assert catalog.gated(["prompt-enhancer"]) == []
 
 

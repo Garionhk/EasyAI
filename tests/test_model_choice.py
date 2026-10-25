@@ -94,14 +94,15 @@ def qt_app():
     return QApplication.instance() or QApplication([])
 
 
-def test_one_model_means_no_control(qt_app):
-    """Flux 2 Klein exactly: a lone GGUF in its folder. A dropdown that cannot
-    be changed is clutter, so it is hidden entirely."""
+def test_one_model_still_gets_a_control(qt_app):
+    """Flux 2 Klein exactly: a lone GGUF in its folder. Every workflow shows
+    its model and lets it be changed, so the dropdown is there regardless."""
     from app.ui.widgets import ModelPicker
 
     picker = ModelPicker()
-    assert picker.set_options([KLEIN], KLEIN) is False
-    assert not picker.isVisible()
+    assert picker.set_options([KLEIN], KLEIN) is True
+    assert not picker.isHidden()
+    assert picker.current() == KLEIN
 
 
 def test_several_models_give_a_control_with_the_original_marked(qt_app):

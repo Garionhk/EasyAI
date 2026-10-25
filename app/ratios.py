@@ -70,6 +70,18 @@ ENGINES: dict[str, Engine] = {
         "flux2-klein", "Flux 2 Klein", megapixels=1.0, multiple=16,
         min_side=512, max_side=2048, overrides=_SQUARE_1024,
     ),
+    # Flux 3 Klein edits: the output takes its size from the reference
+    # pictures, resized to the budget the edit node is given.
+    "flux3-klein": Engine(
+        "flux3-klein", "Flux 3 Klein", megapixels=1.0, multiple=16,
+        min_side=512, max_side=2048, overrides=_SQUARE_1024,
+    ),
+    # MOSS-Image is trained at 1 to 2 megapixels and the shipped workflow uses
+    # 2, so that is the default budget. Sides only need to be multiples of 16.
+    "moss": Engine(
+        "moss", "MOSS-Image", megapixels=2.0, multiple=16,
+        min_side=512, max_side=2560,
+    ),
     "krea2": Engine(
         "krea2", "Krea 2", megapixels=1.0, multiple=16,
         min_side=512, max_side=2048, overrides=_SQUARE_1024,
@@ -332,6 +344,8 @@ _ENGINE_NEEDLES = (
     ("ltx-2.5", "ltx2.5"), ("ltx2.5", "ltx2.5"), ("ltx_2.5", "ltx2.5"),
     ("ltx", "ltx2"),
     ("wan2.2", "wan2.2"), ("wan22", "wan2.2"), ("wan", "wan2.2"),
+    ("moss", "moss"),
+    ("flux3", "flux3-klein"), ("flux-3", "flux3-klein"), ("flux 3", "flux3-klein"),
     ("klein", "flux2-klein"),
     ("flux-2", "flux2"), ("flux2", "flux2"),
     ("krea", "krea2"),

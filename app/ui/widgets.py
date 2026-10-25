@@ -483,6 +483,10 @@ class MegapixelPicker(QWidget):
         """
         self._mode_key = mode_key
         self._warn_above = float(cfg.get(f"{mode_key}_megapixels_warn") or 1.5)
+        # A workflow built bigger than that - MOSS-Image is made at 2 - is not
+        # "bigger than it was built for" at its own size.
+        if current is not None:
+            self._warn_above = max(self._warn_above, float(current))
         remembered = cfg.get(f"{mode_key}_megapixels") or 1.0
         value = float(current if current is not None else remembered)
 
@@ -1122,16 +1126,13 @@ class ModelPicker(QWidget):
         layout.addWidget(self.combo)
 
     def set_options(self, options: list[str], own: str, chosen: str = "") -> bool:
-        """Fill the list. Returns whether there is anything worth showing.
-
-        One option means no choice to make, so the control is hidden rather
-        than shown as a dropdown that cannot be changed.
-        """
+        """Fill the list with the workflow's related models. Returns whether
+        there is anything to show."""
         self._own = own
         self.combo.blockSignals(True)
         self.combo.clear()
         for option in options:
-            label = Path(option).stem
+            label = Path(option.replace("\\", "/")).stem
             if option == own:
                 # Always clear which one the workflow itself came with.
                 label += "   " + t("(in the workflow)")
@@ -1142,7 +1143,9 @@ class ModelPicker(QWidget):
             self.combo.setCurrentIndex(index)
         self.combo.blockSignals(False)
 
-        worth_showing = len(options) > 1
+        # Every workflow with a model gets the control, even with only its own
+        # model installed - it shows which model the workflow uses.
+        worth_showing = bool(options)
         self.setVisible(worth_showing)
         return worth_showing
 
@@ -1154,3 +1157,74 @@ class ModelPicker(QWidget):
 
     def retranslate(self) -> None:
         self.heading.setText(t("MODEL"))
+
+
+class LoraPicker(QWidget):
+    """An optional LoRA: none, or one of the files ComfyUI has, at a strength.
+
+    Offered only where the workflow's author parked a LoRA loader at strength
+    0 - a slot for "a LoRA of your own". "None" takes the loader out of the
+    run, so nothing has to be installed for the workflow to work.
+    """
+
+    changed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        self.heading = QLabel(t("LORA (OPTIONAL)"))
+        self.heading.setObjectName("Heading")
+        layout.addWidget(self.heading)
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        self.combo = QComboBox()
+        self.combo.currentIndexChanged.connect(self._on_pick)
+        row.addWidget(self.combo, 1)
+
+        self.strength = QDoubleSpinBox()
+        self.strength.setRange(-2.0, 2.0)
+        self.strength.setSingleStep(0.05)
+        self.strength.setDecimals(2)
+        self.strength.setValue(1.0)
+        self.strength.setPrefix(t("Strength") + "  ")
+        self.strength.setToolTip(t(
+            "How strongly the LoRA changes the picture. 1 is its full effect; "
+            "lower values blend it in more gently."))
+        self.strength.valueChanged.connect(lambda _v: self.changed.emit())
+        row.addWidget(self.strength)
+        layout.addLayout(row)
+
+    def set_options(self, options: list[str], chosen: str = "",
+                    strength: float = 1.0) -> None:
+        self.combo.blockSignals(True)
+        self.strength.blockSignals(True)
+        self.combo.clear()
+        self.combo.addItem(t("None"), "")
+        for option in options:
+            self.combo.addItem(option.replace("\\", " / ").rsplit(".", 1)[0], option)
+        index = self.combo.findData(chosen) if chosen in options else 0
+        self.combo.setCurrentIndex(max(0, index))
+        self.strength.setValue(float(strength))
+        self.strength.setEnabled(bool(self.current()))
+        self.strength.blockSignals(False)
+        self.combo.blockSignals(False)
+
+    def current(self) -> str:
+        return self.combo.currentData() or ""
+
+    def current_strength(self) -> float:
+        return float(self.strength.value())
+
+    def _on_pick(self) -> None:
+        self.strength.setEnabled(bool(self.current()))
+        self.changed.emit()
+
+    def retranslate(self) -> None:
+        self.heading.setText(t("LORA (OPTIONAL)"))
+        self.strength.setPrefix(t("Strength") + "  ")
+        if self.combo.count():
+            self.combo.setItemText(0, t("None"))

@@ -55,8 +55,9 @@ FILE_SLOTS = IMAGE_SLOTS + AUDIO_SLOTS + VIDEO_SLOTS
 BINDING_KEYS = (
     ("prompt", "negative")
     + FILE_SLOTS
-    + ("model", "width", "height", "ratio", "megapixels", "seed", "length",
-       "batch", "enhancer", "output")
+    + ("model", "lora", "lora_strength", "width", "height", "ratio",
+       "megapixels", "seed", "length", "batch", "enhancer", "boxes", "layout",
+       "output")
 )
 
 #: Bindings the user can be shown a control for.
@@ -79,6 +80,7 @@ _TEXT_INPUT_NAMES = ("text", "value", "prompt", "prompt_text", "string",
 _NEG_INPUT_NAMES = ("negative", "negative_prompt", "text_negative")
 _NEGATIVE_WORDS = re.compile(r"\bneg(ative)?\b", re.I)
 _POSITIVE_WORDS = re.compile(r"\bpos(itive)?\b|\bprompt\b", re.I)
+_SYSTEM_WORDS = re.compile(r"\bsystem\b|\binstructions?\b", re.I)
 
 # Classes that usually hold the text a user is meant to edit, best first.
 _TEXT_CLASS_RANK = (
@@ -525,6 +527,10 @@ def _pick_text(cands: list[tuple[str, str, dict]], graph_order: list[str]) -> tu
         _, input_name, node = item
         title = _title(node)
         return (
+            # A language model's standing instructions - "Text (System
+            # prompt)" in MOSS-Image's workflow - sit in a text box like any
+            # other, but are never what the user typed.
+            1 if _SYSTEM_WORDS.search(title) else 0,
             # The input's own name is the most trustworthy signal. In a MiniMax
             # workflow the real prompt sits on MiniMaxH3ImageToVideo.prompt
             # while a second pass carries a CLIPTextEncode.text of "high
@@ -645,6 +651,43 @@ def _find_loaders(graph: dict, table: dict[str, str], slots: tuple[str, ...],
     return bindings, labels, len(found) > len(slots)
 
 
+def _live_nodes(graph: dict) -> set[str]:
+    """Nodes whose work reaches a saved or previewed result.
+
+    ComfyUI only runs what an output node needs, so a node left lying in the
+    graph does nothing - Flux 3 Klein's edit workflow keeps an
+    EmptyFlux2LatentImage that feeds nothing, while the real size comes from
+    the reference pictures. Binding the size controls to it would offer a
+    control that changes nothing.
+
+    When no recognisable, wired output node exists, every node counts as
+    live: calling a whole workflow dead would be worse than an idle control.
+    """
+    nodes = dict(_iter_nodes(graph))
+    consumed = set(_consumer_edges(graph))
+    sinks = [node_id for node_id, node in nodes.items()
+             if node_id not in consumed
+             and any(k in _cls(node).lower() for k in _SAVE_CLASSES + _PREVIEW_CLASSES
+                     + ("save", "preview"))]
+    # A result node wired to nothing is a fragment, not a workflow - nothing
+    # can be said about which of its nodes run.
+    if not any(isinstance(v, (list, tuple)) and v
+               for node_id in sinks for v in (nodes[node_id].get("inputs") or {}).values()):
+        return set(nodes)
+
+    live: set[str] = set()
+    stack = list(sinks)
+    while stack:
+        node_id = stack.pop()
+        if node_id in live or node_id not in nodes:
+            continue
+        live.add(node_id)
+        for value in (nodes[node_id].get("inputs") or {}).values():
+            if isinstance(value, (list, tuple)) and value:
+                stack.append(str(value[0]))
+    return live
+
+
 def _find_size(graph: dict, graph_order: list[str]) -> tuple[list[Binding], list[Binding], bool]:
     """Find every node exposing width and height as editable literals.
 
@@ -655,7 +698,10 @@ def _find_size(graph: dict, graph_order: list[str]) -> tuple[list[Binding], list
     """
     hinted: list[str] = []
     others: list[str] = []
+    live = _live_nodes(graph)
     for node_id, node in _iter_nodes(graph):
+        if node_id not in live or _cls(node).lower() in _BOX_CLASSES:
+            continue
         inputs = node.get("inputs") or {}
         w, h = inputs.get("width"), inputs.get("height")
         if isinstance(w, (int, float)) and isinstance(h, (int, float)) \
@@ -861,7 +907,10 @@ def _walk_for_duration(graph: dict, node_id: str, depth: int = 0,
 
 def _find_ratio(graph: dict) -> Binding | None:
     """Some workflows drive size from a ratio picker node (e.g. ResolutionSelector)."""
+    live = _live_nodes(graph)
     for node_id, node in _iter_nodes(graph):
+        if node_id not in live:
+            continue
         for input_name, value in (node.get("inputs") or {}).items():
             if input_name.lower() in _RATIO_INPUT_NAMES and isinstance(value, str):
                 return Binding(node_id, input_name)
@@ -876,9 +925,15 @@ def _find_megapixels(graph: dict, ratio: Binding | None) -> Binding | None:
     deciding the output size.
     """
     hits: list[Binding] = []
+    live = _live_nodes(graph)
     for node_id, node in _iter_nodes(graph):
+        if node_id not in live:
+            continue
         for input_name, value in (node.get("inputs") or {}).items():
-            if input_name.lower() != "megapixels":
+            # Dotted names belong to a dynamic option - Flux 3 Klein's
+            # ReferenceMultiLatent keeps its budget in "resolution.megapixels",
+            # present only while "resize" is chosen.
+            if input_name.lower().rsplit(".", 1)[-1] != "megapixels":
                 continue
             if isinstance(value, (int, float)) and not isinstance(value, bool) \
                     and _is_literal(value):
@@ -943,32 +998,117 @@ def _find_optional_slots(graph: dict, bindings: dict[str, list[Binding]],
     return optional
 
 
-#: Inputs that name the main model - the one worth letting a user swap. CLIP
-#: and VAE are deliberately absent: they have to match the model, so offering
-#: them would mostly offer ways to break a workflow.
-_MAIN_MODEL_INPUTS = ("unet_name", "ckpt_name", "gguf_name", "model_name")
+#: Inputs that name the main model, best first. CLIP and VAE are absent: they
+#: have to match the model, so offering them would mostly offer ways to break
+#: a workflow.
+_MAIN_MODEL_INPUTS = ("unet_name", "gguf_name", "ckpt_name", "model_name")
+
+#: Loaders that read a model file but are not the model that makes the
+#: picture. LTX 2.3 reads its checkpoint again for the text encoder and the
+#: audio VAE; LTX 2.5's first model-like loader is the latent upscaler.
+_NOT_MAIN_MODEL = ("upscale", "textencoder", "text_encoder", "vae", "clip",
+                   "controlnet", "lora")
 
 
-def _find_main_model(graph: dict, order: list[str]) -> tuple[Binding | None, bool]:
-    """The node that loads the model this workflow generates with.
+def _find_main_model(graph: dict, order: list[str],
+                     mode: str = "image") -> tuple[list[Binding], bool]:
+    """Every input that names the model this workflow generates with.
 
-    Returns (binding, ambiguous). Every image workflow checked has exactly one,
-    but a workflow that loads two models - a refiner, say - would be ambiguous
-    and is left for the manifest editor to settle.
+    Returns (bindings, ambiguous). Usually one loader; when several loaders
+    read the same file - LTX 2.3 opens its checkpoint for the model, the text
+    encoder and the audio VAE - all of them are bound, so choosing another
+    model changes them together instead of mixing two.
+
+    The Prompt Helper's model is its language model, loaded as a CLIP.
     """
-    found = []
-    for node_id in order:
+    candidates: list[tuple[int, int, Binding, str]] = []
+    for position, node_id in enumerate(order):
         node = graph.get(node_id) or {}
-        for field in _MAIN_MODEL_INPUTS:
-            value = (node.get("inputs") or {}).get(field)
+        inputs = node.get("inputs") or {}
+        low = _cls(node).lower()
+        if any(word in low for word in _NOT_MAIN_MODEL):
+            continue
+        for rank, field in enumerate(_MAIN_MODEL_INPUTS):
+            value = inputs.get(field)
             # A wired input is computed elsewhere; only a literal filename can
             # be swapped for another.
             if isinstance(value, str) and value.strip():
-                found.append(Binding(node=node_id, input=field))
+                candidates.append((rank, position, Binding(node_id, field), value))
                 break
-    if not found:
-        return None, False
-    return found[0], len(found) > 1
+
+    if not candidates and mode == "prompt-enhancer":
+        for node_id in order:
+            value = ((graph.get(node_id) or {}).get("inputs") or {}).get("clip_name")
+            if isinstance(value, str) and value.strip():
+                candidates.append((0, 0, Binding(node_id, "clip_name"), value))
+                break
+    if not candidates:
+        return [], False
+
+    candidates.sort(key=lambda c: (c[0], c[1]))
+    _, _, primary, filename = candidates[0]
+    others = {c[3] for c in candidates if c[3] != filename}
+
+    # Everything else that reads the very same file goes with it.
+    bindings = [primary]
+    for node_id in order:
+        if node_id == primary.node:
+            continue
+        for field, value in ((graph.get(node_id) or {}).get("inputs") or {}).items():
+            if field in _MAIN_MODEL_INPUTS and value == filename:
+                bindings.append(Binding(node_id, field))
+    return bindings, bool(others)
+
+
+#: LoRA loaders, and the inputs naming the file and its strength.
+_LORA_CLASSES = ("loraloadermodelonly", "loraloader")
+_LORA_STRENGTHS = ("strength_model", "strength")
+
+
+def _find_optional_lora(graph: dict, order: list[str]) -> tuple[Binding | None, Binding | None]:
+    """A LoRA its author left switched off, which EasyAI offers as a choice.
+
+    Most LoRAs in these workflows are part of the recipe - a turbo LoRA the
+    sampler settings assume - and must stay as they are. A loader set to
+    strength 0 does nothing at all, which is how an author parks a slot for
+    "a LoRA of your own". That one, and only that one, becomes a picker.
+    """
+    live = _live_nodes(graph)
+    for node_id in order:
+        node = graph.get(node_id) or {}
+        if node_id not in live or _cls(node).lower() not in _LORA_CLASSES:
+            continue
+        inputs = node.get("inputs") or {}
+        if not isinstance(inputs.get("lora_name"), str):
+            continue
+        strength = next((k for k in _LORA_STRENGTHS if k in inputs), None)
+        value = inputs.get(strength) if strength else None
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0:
+            return Binding(node_id, "lora_name"), Binding(node_id, strength)
+    return None, None
+
+
+#: Nodes that draw layout boxes, and the prompt nodes that read them.
+_BOX_CLASSES = ("createboundingboxes",)
+_LAYOUT_CLASSES = ("flux3layoutprompt", "mossimagelayoutprompt")
+
+
+def _find_boxes(graph: dict, order: list[str]) -> tuple[Binding | None, Binding | None]:
+    """The box canvas and the layout prompt it feeds, when a workflow has both.
+
+    The canvas is ComfyUI's interactive box editor. EasyAI fills it from its
+    own editor; the layout node is what turns the boxes into prompt text, and
+    it is removed when no boxes are drawn so the prompt runs as plain text.
+    """
+    edges = _consumer_edges(graph)
+    for node_id in order:
+        node = graph.get(node_id) or {}
+        if _cls(node).lower() not in _BOX_CLASSES:
+            continue
+        for consumer, _ in edges.get(node_id, []):
+            if _cls(graph.get(consumer) or {}).lower() in _LAYOUT_CLASSES:
+                return Binding(node_id, "editor_state"), Binding(consumer, "prompt")
+    return None, None
 
 
 def autodetect(graph: dict, mode: str = "image", name: str = "", caps=None) -> Manifest:
@@ -1018,9 +1158,9 @@ def autodetect(graph: dict, mode: str = "image", name: str = "", caps=None) -> M
         if overflow:
             ambiguous.append(slots[0])
 
-    model, model_ambiguous = _find_main_model(graph, graph_order)
-    bindings["model"] = [model] if model else []
-    if model and model_ambiguous:
+    models, model_ambiguous = _find_main_model(graph, graph_order, mode)
+    bindings["model"] = models
+    if models and model_ambiguous:
         ambiguous.append("model")
 
     widths, heights, size_ambiguous = _find_size(graph, graph_order)
@@ -1038,6 +1178,14 @@ def autodetect(graph: dict, mode: str = "image", name: str = "", caps=None) -> M
     bindings["enhancer"] = [enhancer] if enhancer else []
 
     bindings["seed"] = _find_all_seeds(graph, graph_order)
+
+    lora, lora_strength = _find_optional_lora(graph, graph_order)
+    bindings["lora"] = [lora] if lora else []
+    bindings["lora_strength"] = [lora_strength] if lora_strength else []
+
+    boxes, layout = _find_boxes(graph, graph_order)
+    bindings["boxes"] = [boxes] if boxes else []
+    bindings["layout"] = [layout] if layout else []
 
     duration, unit, duration_ambiguous = _find_duration(graph, graph_order)
     bindings["length"] = [duration] if duration else []

@@ -35,6 +35,15 @@ LABELS: dict[str, tuple[str, str]] = {
     "enhancer": ("Prompt improver",
                  "A node that rewrites the prompt with a language model. "
                  "Binding it here adds a tick box so the user can turn it off."),
+    "lora":     ("Optional LoRA",
+                 "A LoRA loader the user may fill or leave out. Offered as a "
+                 "dropdown with None; None takes the loader out of the run."),
+    "lora_strength": ("LoRA strength", "How strongly the optional LoRA applies"),
+    "boxes":    ("Layout boxes",
+                 "A Create Bounding Boxes node. Binding it adds the box editor."),
+    "layout":   ("Layout prompt",
+                 "The node that turns the boxes into prompt text. Taken out "
+                 "when no boxes are drawn, so the prompt runs as plain text."),
     "length":   ("Length", "Number of frames or seconds, for video and music"),
     "batch":    ("How many", "Number of results per run"),
     "output":   ("Output name", "The file name prefix on the Save node"),

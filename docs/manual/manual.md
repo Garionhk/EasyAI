@@ -1,565 +1,664 @@
-# EasyAI User Manual
+# EasyAI v1.1.0 — User Manual
 
-## Overview
+EasyAI is a Windows desktop app for making AI pictures, videos and better
+prompts without touching a node editor. Pick a style, type what you want,
+choose a shape, press Create — EasyAI drives ComfyUI (the engine that does
+the actual generation) behind the scenes. It's aimed at people who want the
+results ComfyUI can produce without learning ComfyUI itself.
 
-EasyAI is a Windows desktop application that gives you a simple, plain-language
-front end for ComfyUI — the node-based engine that powers many local
-Stable-Diffusion-style AI tools. Instead of building node graphs, you pick a
-"style" (a pre-built workflow), type a description of what you want, choose a
-shape, and press Create. EasyAI handles talking to ComfyUI, shows you a live
-preview while your image or video is being generated, and saves the finished
-result for you.
+EasyAI actually comes as **three separate programs** that share the same
+look and settings language:
 
-EasyAI is built for people who want to use AI image, video, and prompt-writing
-tools without learning ComfyUI's node editor — hobbyists, artists, and anyone
-who has a ComfyUI installation (or is willing to install one) and wants a
-friendlier way to drive it. It has three main tabs — **Image**, **Video**, and
-**Prompt Helper** — each built around the same "pick a style, describe it,
-choose a shape, press Create" idea.
+- **EasyAI** — the day-to-day app: Image, Video, Prompt Helper, Queue and
+  Read a prompt tabs. This is what most people run.
+- **EasyAI Setup** — a one-time (or occasional) installer/updater that
+  downloads ComfyUI and the specific models and add-ons EasyAI's workflows
+  need, or updates a ComfyUI you already have. Run this before EasyAI if you
+  don't already have ComfyUI installed.
+- **EasyAI Studio** — a publishing tool for people who maintain or add
+  workflows to EasyAI. Most users will never need to open this.
 
-EasyAI does not include ComfyUI itself. You either point EasyAI at a ComfyUI
-installation you already have, or use the separate **EasyAI Setup** tool
-(covered near the end of this manual) to download and install one.
-
----
+This manual covers all three.
 
 ## Installation & Requirements
 
-**Operating system:** EasyAI is built and tested for Windows. (Some
-non-Windows code paths exist in the app, but the documented, supported way to
-install and launch EasyAI is on Windows.)
+- **Operating system**: Windows only.
+- **Graphics card**: an NVIDIA graphics card is required. EasyAI's workflows
+  were built and tested on a 16 GB card.
+  <!-- TODO: confirm exact minimum VRAM figure for smaller cards -->
+- **ComfyUI**: EasyAI does not include ComfyUI itself. Either point EasyAI's
+  Settings at a ComfyUI install you already have, or run **EasyAI Setup**
+  first to download one for you (a tested version, currently ComfyUI
+  0.37.0).
+- **Disk space for downloads** (via EasyAI Setup): roughly 76 GB for the
+  Image group of models, 138 GB for Video, and 5 GB for Prompt Helper. You
+  don't need all three — choose only the groups you want.
 
-**Python:** version 3.10 or newer. The launcher checks this on startup and
-will show an on-screen message and refuse to continue if your Python is too
-old.
+### Running the prebuilt version (recommended for most people)
 
-**Python packages** (installed automatically the first time you run EasyAI —
-see below): `PySide6`, `requests`, `websocket-client`, `Pillow`.
+If you downloaded `EasyAI.exe` and `EasyAI Setup.exe` from the Releases
+page, nothing else needs installing — no Python required. Keep the `.exe`
+files in a folder you can write to (not inside `Program Files`), because
+EasyAI keeps its settings, workflows and results in folders right next to
+the program.
 
-**A working ComfyUI installation.** EasyAI is a front end for ComfyUI, not a
-replacement for it — it needs a ComfyUI folder to point at. If you don't
-already have one, run the separate **EasyAI Setup** program described in
-[EasyAI Setup (companion installer)](#easyai-setup-companion-installer) to
-download and install one.
+1. Run **EasyAI Setup.exe** first if you don't already have ComfyUI.
+2. Once that finishes, run **EasyAI.exe**.
 
-**Graphics hardware:** image and video generation is GPU-intensive, and
-EasyAI shows VRAM warnings as you increase detail/length, but the project
-does not state an official minimum GPU, VRAM amount, or whether CPU-only use
-is supported.
+### Running from source (technical users)
 
-<!-- TODO: confirm minimum GPU/VRAM requirements and whether CPU-only mode is supported -->
+```bash
+pip install -r requirements.txt
+python EasyAI.py
+```
 
-### Installing EasyAI
-
-1. Install Python 3.10 or newer. When the Python installer asks, tick
-   **"Add python.exe to PATH."**
-2. Get a copy of the EasyAI folder (from wherever you obtained it) onto your
-   computer.
-3. Start EasyAI by double-clicking the **EasyAI** shortcut, or by running
-   `python EasyAI.py` from a command prompt in the EasyAI folder.
-4. The first time you launch it, EasyAI notices that its required packages
-   aren't installed yet and installs them for you automatically. A console
-   window appears briefly for this one-time step; after that, EasyAI always
-   opens without a console window in the background.
-
-<!-- TODO: confirm whether end users are ever expected to run a packaged .exe build (via Build EXE.bat) instead of launching from source, and if so, document that install path here -->
-
----
+Double-clicking `EasyAI.bat` does the same thing automatically: it finds
+Python, installs the required libraries the first time only, then always
+starts the app without a console window. `EasyAISetup.bat` and
+`EasyAI Studio.bat` start the other two programs the same way. Python 3.10
+or newer is required when running from source; `EasyAI.bat` checks this and
+links to the Python download page if your version is missing or too old.
 
 ## First-Run Setup
 
-The very first time you open EasyAI (before you have ever used it), the app
-does two things automatically, in order:
-
-1. Shows a one-time welcome message telling you it has guessed where your
-   ComfyUI installation lives.
-2. Opens the **Settings** window automatically so you can check — and if
-   needed, correct — that guess before you try to create anything.
-
-You only see this automatic flow once. After that, you can always reach
-Settings yourself from **File → Settings…**.
-
-See [First-run Welcome](#first-run-welcome) and [Settings](#settings) below
-for what each of these screens looks like and what to do on them.
-
----
-
-## Feature Walkthrough
-
-### First-run Welcome
+The very first time you start EasyAI, before you can create anything, you
+will see a short welcome message.
 
 ![](screenshots/01_first-run-welcome.png)
 
-This message box appears only once, the very first time you open EasyAI. It
-tells you that EasyAI has made a guess at where ComfyUI is installed on your
-computer, and that the Settings window is about to open so you can confirm or
-correct that guess.
+It tells you that EasyAI has guessed where your ComfyUI folder is, and that
+it's about to open **Settings** so you can check that guess. Press **OK** to
+continue — Settings opens automatically right after.
 
-**What to do:**
+This message only appears once. After you close it, EasyAI remembers that
+first run is done, whether or not you changed anything in Settings.
 
-1. Read the guessed folder path shown in the message.
-2. Click **OK**.
-3. The Settings window opens next — go to [Settings](#settings) below and use
-   **Test now** to check whether the guessed folder is actually correct
-   before you close it.
-
-You don't need to change anything on this screen itself; it's just a heads-up
-before Settings opens.
-
----
+## Feature Walkthrough
 
 ### Settings
 
+Settings is where you tell EasyAI where ComfyUI lives, where your workflows
+and results are stored, and set a few generation defaults and the app
+language. You can open it any time from **File → Settings…** (or `Ctrl+,`),
+not just on first run.
+
 ![](screenshots/02_settings.png)
 
-Settings is where you tell EasyAI where ComfyUI lives, how it should be
-started, where your workflows and results are stored, and a few generation
-defaults. You can open it any time from **File → Settings…** (or the keyboard
-shortcut `Ctrl+,`).
+**The AI engine (ComfyUI) section:**
 
-**What to do:**
+1. **ComfyUI folder** — type or **Browse…** to the folder ComfyUI is
+   installed in.
+2. **Start file** — a dropdown of every launcher file EasyAI found in that
+   folder; pick the one that starts ComfyUI on your machine.
+3. **Address** — the `host:port` ComfyUI answers on. The default,
+   `127.0.0.1:8188`, is correct for almost everyone.
+4. Two checkboxes: **Start ComfyUI automatically when EasyAI opens**, and
+   **Close ComfyUI when EasyAI closes** (this only ever closes a ComfyUI
+   that EasyAI itself started — one you started by hand is left alone).
+5. A status line and a **Test now** button let you check right away whether
+   EasyAI can talk to ComfyUI at the settings you've entered. In the
+   screenshot above no ComfyUI was running, so it reads "Nothing is
+   answering at 127.0.0.1:8188" — once ComfyUI is reachable this line turns
+   green and reads "ComfyUI is answering at …".
 
-1. **ComfyUI folder** — Click **Browse…** and select the folder your ComfyUI
-   installation lives in, if the pre-filled path isn't correct.
-2. **Start file** — Choose which `.bat` file inside that folder should be
-   used to start ComfyUI (EasyAI lists every `.bat` file it finds in the
-   folder). If you have an NVIDIA GPU, a launcher with "nvidia" in its name
-   is usually the right pick, and EasyAI tries to put likely choices at the
-   top of the list.
-3. **Address** — Leave this as `127.0.0.1:8188` unless you know your ComfyUI
-   server runs somewhere else.
-4. Tick or clear **"Start ComfyUI automatically when EasyAI opens"** and
-   **"Close ComfyUI when EasyAI closes"** depending on how you want ComfyUI's
-   lifecycle managed. The second option only ever closes a ComfyUI process
-   that EasyAI itself started — it will never close a copy of ComfyUI you
-   started yourself.
-5. Click **Test now** to check the connection. The status line below turns
-   green and says "ComfyUI is answering at …" if everything is set up
-   correctly; otherwise it shows a warning explaining what's wrong.
-6. Under **Folders**, confirm or change the **Workflows** folder (where your
-   exported workflow files live) and the **Results** folder (where finished
-   images/videos are saved).
-7. Under **Creating**, set your preferred starting shape, and how long EasyAI
-   should wait before giving up on a stuck generation or a slow-starting
-   engine.
-8. Choose your **Language** from the dropdown if you want the app in a
-   language other than the default.
-9. Click **Save** to apply your changes (this happens immediately, with no
-   restart needed), or **Cancel** to discard them.
+**Folders section:** where **Workflows** and **Results** are stored. Both
+default to folders sitting right next to EasyAI itself, so you can move or
+copy the whole EasyAI folder and it keeps using its own workflows/results.
 
-If you change the ComfyUI folder, start file, server address, or workflows
-folder, EasyAI automatically re-checks the connection and reloads your
-workflow lists for you when you close this window.
+**Creating section:** a default **Shape to start with**, how long to wait
+before giving up on a stuck generation ("Give up after") or a slow ComfyUI
+launch ("Wait for the engine up to"), and a **Language** dropdown (English,
+繁體中文, 简体中文). Changing the language takes effect the moment you press
+**Save** — no restart needed.
 
-<!-- TODO: confirm whether a dark/light theme toggle exists anywhere in the app; no such control was found in the Settings window during manual preparation, so it is not documented as a user-facing control here -->
-
----
+Press **Save** to keep your changes, or **Cancel** to discard them. If you
+change the ComfyUI folder, start file, address, or workflow folder, EasyAI
+re-checks the engine and reloads your workflow list automatically.
 
 ### Startup Splash
 
+If ComfyUI isn't already running when EasyAI starts, you'll briefly see a
+progress screen while EasyAI looks for it (and, if "Start ComfyUI
+automatically" is on, starts it for you).
+
 ![](screenshots/03_startup-splash.png)
 
-This small progress window appears while EasyAI is looking for, or starting,
-the ComfyUI engine — so you're never staring at a window that looks frozen.
-You'll typically only see it right after launching EasyAI, and only if
-ComfyUI isn't already running.
+It shows an indeterminate progress bar and a status line. If you don't want
+to wait, press **Carry on without it** — the main window opens right away,
+though you won't be able to create anything until the engine connects. If
+ComfyUI genuinely fails to start, EasyAI tells you it's still fine for
+browsing but not for creating.
 
-**What to do:**
-
-- Just wait. EasyAI is either checking whether ComfyUI is already running, or
-  launching it for you using the start file you chose in Settings.
-- If you don't want to wait, click **Carry on without it**. The main EasyAI
-  window opens right away, but you won't be able to generate anything until
-  the engine connects.
-- If ComfyUI fails to start in time, EasyAI shows a message explaining that
-  the app is still usable for browsing your workflows, but not for creating
-  anything, until the engine is available.
-
----
+If ComfyUI is already running and answering when you start EasyAI, this
+screen is skipped entirely.
 
 ### Main Window
 
+This is the app's home screen: an engine status strip, five tabs, a menu
+bar, and a status bar.
+
 ![](screenshots/04_main-window.png)
 
-This is the main EasyAI window you'll spend most of your time in. Across the
-top is a menu bar and an engine status strip; below that are the three
-generation tabs; at the bottom is a status bar.
+- The strip above the tabs shows whether the engine is live (`engine live ·
+  127.0.0.1:8188`) or down (`engine down · …`), plus how many workflows are
+  loaded.
+- The tab bar runs: Image, Video, Prompt Helper, Queue, and Read a prompt.
+- The bottom status bar shows VRAM usage once the engine is running, plus a
+  coloured dot and "AI engine: running/not running" text.
+- The **File** menu holds Open the workflows folder, Open the results
+  folder, Settings…, and Quit.
+- The **AI engine** menu holds Check it is running (`F5`), Start it now, and
+  Reload workflows (`Ctrl+R`).
+- The **Help** menu holds "How do I add a workflow?" and "About EasyAI".
 
-**What you see:**
+Handy shortcuts: `Ctrl+Enter` runs Create on whichever tab is in front,
+`Ctrl+,` opens Settings, `F5` checks the engine, `Ctrl+R` reloads workflows.
 
-- **Menu bar** — **File** (open your workflows/results folders, Settings,
-  Quit), **AI engine** (check connection, start the engine, reload
-  workflows), and **Help** (quick reference and About).
-- **Engine status strip** — a pill showing whether the engine is live (green,
-  with the address it's answering on) or down (red), plus a count of loaded
-  workflows.
-- **Tab bar** — switch between **Image**, **Video**, and **Prompt Helper**.
-- **Status bar** (bottom) — shows VRAM usage while the engine is running and
-  reporting a graphics device, a coloured dot with "AI engine: running / not
-  running," and brief status messages.
-
-**Useful keyboard shortcuts:**
-
-| Shortcut | Action |
-|---|---|
-| `Ctrl+Enter` / `Ctrl+Return` | Run Create on whichever tab you're viewing |
-| `Ctrl+,` | Open Settings |
-| `F5` | Check that the engine is running |
-| `Ctrl+R` | Reload the workflow lists |
-
-A workflow list showing every entry as "NOT CHECKED" and an engine status of
-"not running" simply means EasyAI hasn't yet connected to a live ComfyUI
-server — as soon as ComfyUI is running and reachable, EasyAI automatically
-re-checks each workflow and updates its status.
-
-EasyAI remembers your window size and position between sessions. When you
-close the window, any generation job in progress is cancelled, and — if you
-left "Close ComfyUI when EasyAI closes" turned on in Settings — any ComfyUI
-process EasyAI itself started is shut down for you.
-
----
+EasyAI remembers the window's size and position between sessions. When you
+close the window, if anything is still in the Queue, EasyAI asks first (see
+the Queue section below) before shutting anything down.
 
 ### Image tab
 
-![](screenshots/05_image-tab-generate.png)
+Pick a workflow ("style") on the left, describe what you want in the
+middle, and watch the result appear on the right.
 
-The Image tab is where you generate still images. It's arranged in three
-columns: your list of styles on the left, your prompt and options in the
-middle, and a preview plus your results on the right.
+![](screenshots/05_image-tab-default.png)
 
-**What to do:**
+1. **Choose a style** (left column) — scroll the list of workflow cards.
+   Each shows a coloured status dot: green means ready, amber means it needs
+   checking, red means something (an add-on or model) is missing. Use
+   **Refresh** after adding new workflow files, and **Set up…** to correct
+   how EasyAI has guessed a workflow works (see the Manifest Editor section
+   below). Right-click a workflow for **Rename…**, **Set up…**, or **Show
+   the file**; double-clicking a workflow also renames it.
+2. **Describe it** (middle column) — type your prompt in the box at the top;
+   a live character counter tracks its length. Some workflows disable the
+   prompt box entirely if they don't take one.
+3. **Negative prompt** — for workflows that support it, a second box labelled
+   **NEGATIVE PROMPT** appears, often pre-filled with useful default text.
+   Leave it as-is to use that default, edit it to change it, or clear it to
+   send no negative prompt at all.
+4. **Attach files** — workflows that need a picture, audio or video to work
+   from show labelled drop zones; click or drag a file in. Only a few slots
+   show at once, with the rest reachable by scrolling, so even a workflow
+   with many file slots stays usable.
+5. **Reference pictures that grow one at a time** — some workflows (built on
+   Qwen Image 2.1) can take up to 10 reference pictures. EasyAI only shows
+   you **Reference 1** at first; as soon as you fill it, **Reference 2**
+   appears, and so on, up to 10. If you remove a picture partway through the
+   list, the remaining ones shift up so there's never a gap.
 
-1. **Choose a style** — In the left-hand list, click the workflow you want to
-   use. Each entry shows a status dot and a short label:
-   - **READY** (green) — ready to use.
-   - **CHECK SET UP** / **NOT CHECKED** (amber) — EasyAI guessed how this
-     workflow works, or hasn't checked it against a live engine yet.
-   - **MISSING ADD-ON** / **MISSING MODEL** (red) — something this workflow
-     needs isn't installed in your connected ComfyUI.
-   - **NEEDS RE-EXPORT** (red) — see
-     [Troubleshooting](#a-workflow-says-needs-re-export).
-   - If the list is empty, EasyAI tells you which folder to save exported
-     workflow files into, then press **Refresh**.
-2. **Describe what you want** — Type your description into the prompt box.
-   A character counter above the box tracks your typing.
-3. **Attach files, if the style needs them** — Some styles show one or more
-   file boxes for pictures, sound, or video. Click a box (or drag a file onto
-   it) to attach a file; click **Remove** to clear it. Boxes marked
-   "(optional)" can be left empty.
-4. **Pick a Shape** — Click one of the ratio buttons (e.g. `1:1`, `16:9`) to
-   set the output's proportions. The exact pixel size appears underneath.
-5. **Adjust Detail**, if shown — Drag the slider to trade off quality against
-   speed and memory use. A hint line under the slider tells you what the
-   current value means; an amber warning appears if you go high enough that
-   it may run out of graphics memory.
-6. **Turn on "Repeat the same result"** if you want to keep the same random
-   seed across runs (useful for comparing small changes to your prompt).
-7. Click **Create Image** (or press `Ctrl+Enter`). A progress bar appears
-   while EasyAI generates your image, and a live preview shows ComfyUI's
-   in-progress frames.
-8. When it's done, your image appears in the preview pane and is added to
-   **Your results** below it. Double-click a result to open it, or click
-   **Open folder** to see all your saved images in Windows Explorer.
+  ![](screenshots/06_image-tab-negative-and-slots.png)
 
-If you press Create while the engine isn't running, or while a required file
-is missing, EasyAI shows a message telling you what to fix instead of sending
-a broken job to ComfyUI.
+  <!-- TODO: confirm appearance of Reference 2 and later slots — only the
+  first slot ("Image 1"/"Reference 1") could be captured for this manual;
+  filling it to reveal the next slot was not captured. -->
+6. **Model picker** — when a workflow's model folder contains more than one
+   file of the same type (for example several checkpoints of the same
+   family), a **MODEL** dropdown appears so you can pick which one to use;
+   the workflow's own default is marked "(in the workflow)". This only shows
+   up when there's a genuine choice to make.
+   <!-- TODO: confirm — a screenshot of the Model picker itself could not be
+   captured, since it needs a real ComfyUI models folder with more than one
+   matching model file. Described here from the outline only. -->
+7. **Shape, Detail, batch** — a row of shape chips (e.g. square, portrait,
+   landscape — whatever the workflow supports), a Detail slider controlling
+   output resolution/quality (with a warning above a certain level, since
+   higher detail uses more graphics memory), and a "How many" count for
+   workflows that support batches.
+8. Two optional switches: **"Let the AI improve my wording first"** (turns on
+   an automatic prompt-enhancer for workflows that have one) and **"Repeat
+   the same result, so I can compare changes"** (locks the random seed so
+   you can compare small changes fairly).
+9. At the bottom, always visible even while you scroll the rest of the
+   column: the **Create Image** button, a **Stop** button (once something is
+   running), a "CTRL + ENTER to run" hint, a progress bar, and a status line
+   that, after a run finishes, shows elapsed time, file size, count, seed,
+   and any notes.
+10. **Right column** — a live preview of the image as it generates, and a
+    Results gallery of everything you've made this session, with an **Open
+    folder** button and double-click-to-view.
 
----
+If you press Create while the engine isn't running, EasyAI warns you and
+points you to Settings. If a required file is missing, EasyAI tells you
+exactly what's needed before sending anything.
 
 ### Video tab
 
-![](screenshots/06_video-tab-generate.png)
+Works the same way as the Image tab, with two differences: a **Length**
+control (in seconds, with the resulting frame count shown underneath, and a
+caution above 8 seconds about graphics-memory use) replaces the still-image
+size choice for length, and the results preview shows the finished video's
+**first frame** — both in the live preview pane and in the gallery
+thumbnails — so you can tell several takes apart at a glance. Double-click a
+result to open the actual video in your normal video player.
 
-The Video tab works the same way as the Image tab, with a few
-video-specific differences.
+![](screenshots/07_video-tab.png)
 
-**What's different from Image:**
-
-- Some video styles need a starting picture or clip — attach it in the file
-  box provided (for example, "Load Video (Upload)").
-- A **Length** control (in seconds) sets how long the finished video will be;
-  the equivalent frame count is shown underneath. Longer videos use
-  noticeably more graphics memory — an amber caution appears once you pass a
-  set threshold.
-- The **Create Video** button carries a tooltip reminding you that video
-  generation takes much longer than a still image.
-- While a job is running, the Create button is replaced with a **Stop**
-  button, which cancels the current job.
-
-Otherwise, choosing a style, writing a prompt, picking a shape/detail level,
-and viewing your results work exactly as described in
-[Image tab](#image-tab) above.
-
----
+The Detail warning threshold is lower on Video than on Image, since a
+higher setting costs graphics memory once per frame rather than once per
+image.
 
 ### Prompt Helper tab
 
-![](screenshots/07_prompt-helper-tab-generate.png)
+Use this tab when you want AI help turning a rough idea into a fuller
+prompt, rather than to generate a picture or video directly.
 
-The Prompt Helper tab doesn't generate a picture or video — it takes a short,
-rough idea and expands it into a longer, more detailed prompt you can reuse
-on the Image or Video tab.
+![](screenshots/08_prompt-helper-tab.png)
 
-**What to do:**
+Type your rough idea and press **Improve my prompt**. Instead of a picture
+preview, this tab shows:
 
-1. Choose a style from the list on the left (there is usually just one:
-   a prompt-enhancer style).
-2. Type a short idea into the box — for example, "a fox in the snow."
-3. Click **Improve my prompt** (or press `Ctrl+Enter`).
-4. The expanded result appears on the right, under **The improved prompt**.
-5. From here you can:
-   - Click **Copy** to copy the text to your clipboard.
-   - Choose **Send to Image** or **Send to Video** from the dropdown, then
-     click **Go**, to drop the improved prompt straight into that tab's
-     prompt box and switch to it.
-   - Click any entry in your history list to reload a prompt you improved
-     earlier in a previous session.
+- **THE IMPROVED PROMPT** — a read-only box with the result.
+- **Copy** — copies the text.
+- A **"Send to Image/Video"** dropdown plus **Go** — drops the improved
+  prompt straight into the chosen tab's prompt box and switches you there.
+- A history list of everything you've generated with Prompt Helper before,
+  which you can click to reload.
 
-If a workflow finishes without producing any readable text, see
-[Troubleshooting](#prompt-helper-produced-no-text) below.
+Every result is also saved to a text file automatically, so nothing is
+lost even after you close EasyAI.
 
----
+### Queue tab
+
+Every press of Create — on any of the three Generate tabs — adds a job here
+rather than running immediately. Because there's one GPU, jobs run one at a
+time in order.
+
+![](screenshots/09_queue-tab-empty.png)
+
+The screenshot above shows the empty state you'll see before anything has
+been queued: "Nothing queued. Press Create on any tab and it will appear
+here." Once jobs are queued, this screen instead shows:
+
+- A running count ("1 running · N waiting").
+- One row per job, showing its state (waiting, running, done, failed, or
+  cancelled), which tab it came from, the workflow name, a short summary, a
+  progress bar while it runs, and a cancel button.
+- **Clear finished** to tidy up completed rows.
+- **"Close EasyAI when the queue is empty"** — a switch that, combined with
+  "Close ComfyUI when EasyAI closes" in Settings, lets you queue up a batch
+  of jobs, walk away, and have both EasyAI and ComfyUI shut down on their
+  own once everything's done. This switch resets to off every time you
+  start EasyAI, so it never surprises you on a night you forgot it was set.
+- A gallery of everything made in the current session, below the queue
+  list.
+
+<!-- TODO: confirm exact wording — a screenshot with running/waiting jobs,
+the 20-second close countdown dialog, and the "Still working" exit-guard
+dialog could not be captured for this manual, since capturing without
+starting ComfyUI meant no job could actually be queued. -->
+
+When the queue does empty out with "Close when empty" turned on, EasyAI
+shows a message saying everything is finished and counts down 20 seconds,
+with **Stay open** (the default) and **Close now** buttons. Choosing Stay
+open turns the switch back off so you won't be asked again next time.
+
+If you try to close EasyAI while jobs are still running or waiting, EasyAI
+stops you with a warning naming how many are in progress, offering **Keep
+working** (switches you to the Queue tab) or **Cancel everything and
+close**.
+
+### Read a prompt tab
+
+Use this to recover the prompt that made an existing picture or video —
+useful when you've forgotten what you typed, or you're curious how someone
+else's image was made. It works even with ComfyUI closed.
+
+![](screenshots/10_read-a-prompt-tab-gallery.png)
+
+Drag a picture or video onto the drop zone on the left, or click it to
+browse for one — or pick one from the results gallery underneath it, which
+lists recent files from all three output folders (Image, Video, Prompt
+Helper).
+
+![](screenshots/11_read-a-prompt-tab-result.png)
+
+Once a file is chosen, the right side shows a preview and, if a prompt could
+be found embedded in the file, "THE PROMPT" with the recovered text, plus
+**Copy**, **Use this in Image**, and **Use this in Video** buttons. Above
+the prompt box, a short line tells you where the text came from:
+
+- **"from <workflow name>"** — EasyAI matched the file to one of your own
+  workflows.
+- **"best guess — this workflow is not one of yours"** (shown in an amber
+  warning colour) — the file wasn't made with any workflow EasyAI
+  recognises, so it's showing its best guess at the prompt anyway.
+
+If the file has no prompt embedded at all — common for pictures that have
+been re-saved, sent through a messaging app, or downloaded from most
+websites — you'll see "This file does not carry a prompt…" and the Copy/Use
+buttons stay disabled. If the file has since been deleted, EasyAI tells you
+"That file is no longer there."
+
+This tab refreshes its list every time you open it, so new results and
+newly added workflows show up without restarting EasyAI.
 
 ### Set up… (Manifest Editor)
 
-![](screenshots/08_manifest-editor.png)
+EasyAI guesses, automatically, which parts of a workflow's internal node
+graph correspond to the prompt, negative prompt, shape, seed, length, and so
+on. The Manifest Editor lets you correct those guesses by hand, without
+editing any files directly.
 
-The Manifest Editor lets you correct EasyAI's automatic guesses about which
-parts of a workflow correspond to the prompt box, shape, seed, and so on —
-without having to edit any files by hand.
+![](screenshots/12_manifest-editor.png)
 
-**When you'll see this:** click **Set up…** below a style list, right-click a
-style and choose **Set up…**, or follow the prompt when a style is flagged
-**CHECK SET UP**.
+Open it via the **Set up…** button on a Generate tab, right-click a
+workflow and choose **Set up…**, or when a workflow is flagged "CHECK SET
+UP" in the workflow list.
 
-**What to do:**
+- **Name shown in the list** — rename the workflow as it appears to you.
+- **Model family** — leave as "Work it out automatically", or pick a
+  specific engine if EasyAI guessed wrong; this decides which set of shapes
+  is offered.
+- One row per setting (Prompt, Negative prompt, Width, Height, Seed, and so
+  on, plus a row for each file slot) — each lets you pick which node and
+  input in the graph that setting should control.
+- **Save** keeps your changes and marks the workflow as manually configured
+  (so it won't be silently re-guessed later). **Guess again** re-runs the
+  automatic detection (discarding your edits in this dialog, until you press
+  Save). **Cancel** closes without saving.
 
-1. If EasyAI had to guess some of these settings, an amber note near the top
-   names which ones — worth double-checking those first.
-2. Give the workflow a friendly **Name shown in the list**, if you'd like one
-   other than the file name.
-3. Set **Model family** if you know which engine the workflow was built for,
-   or leave it on "Work it out automatically."
-4. For each row (Prompt, Things to avoid, Width, Seed, and so on), use the
-   dropdowns to pick which node — and which input on that node — EasyAI
-   should control. Use **"+ also set another node"** if a single value (like
-   width) needs to be written to more than one place in the workflow.
-5. Click **Save** to apply your changes, **Cancel** to discard them, or
-   **Guess again** to have EasyAI re-run its automatic detection and start
-   over (this doesn't save until you click Save).
-
-Your corrections are saved next to the workflow file and are **not**
-overwritten if you re-export the same workflow from ComfyUI later — so you
-only need to fix a given workflow's setup once.
-
----
+Your corrections are stored in a small file next to the workflow and are
+kept even if you later re-export the same workflow from ComfyUI.
 
 ### Rename dialog
 
-![](screenshots/09_rename-dialog.png)
+A simple way to give a workflow a friendlier name than its file name.
 
-Use this to give a workflow a friendlier name in the style list than its raw
-file name.
+![](screenshots/13_rename-dialog.png)
 
-**How to reach it:** select a workflow and press `F2`, double-click it, or
-right-click it and choose **Rename…**.
+Open it with `F2` on a selected workflow, by double-clicking a workflow, or
+via right-click → **Rename…**. Type the new name and press OK. Clearing the
+name entirely reverts to using the file name.
 
-**What to do:**
+### Help → How do I add a workflow?
 
-1. Type the new name you want shown in the style list.
-2. Click **OK** to save it, or **Cancel** to leave it unchanged.
+A quick in-app reminder of the steps for adding a new workflow: export it
+from ComfyUI using Export (API), save it into the right folder, then press
+Refresh.
 
-The custom name is stored separately from the file itself, so re-exporting
-the same workflow later from ComfyUI won't lose your renamed label. Clearing
-the name back to blank makes EasyAI fall back to showing the file name.
+![](screenshots/14_help-add-workflow.png)
 
----
+The message names your actual current workflow folder, taken from Settings.
 
-### Help menu
+### Help → About EasyAI
 
-EasyAI's **Help** menu has two entries, both simple reference dialogs.
+Shows the app version and a reminder of where your workflows and results
+are currently stored.
 
-#### How do I add a workflow?
+![](screenshots/15_help-about.png)
 
-![](screenshots/10_help-add-workflow.png)
+## EasyAI Setup
 
-A quick, in-app reminder of the steps for adding a new style to EasyAI:
+Run this program to install ComfyUI and the models/add-ons EasyAI's
+workflows need, or to update a ComfyUI you already have. It's one long
+scrollable screen, meant to be read top to bottom.
 
-1. Open the workflow in ComfyUI and make sure it runs.
-2. Choose **Workflow → Export (API)** in ComfyUI — a plain Save will not
-   work; EasyAI needs the API version of the file.
-3. Save the exported file into the matching folder inside your workflows
-   folder (the exact path is shown live in this dialog).
-4. Back in EasyAI, click **Refresh**.
+![](screenshots/16_easyai-setup.png)
 
-EasyAI then works out which parts of the workflow it can control
-automatically. If it guesses something wrong, use **Set up…** to correct it
-(see [Set up… (Manifest Editor)](#set-up-manifest-editor) above). As a tip,
-placing a picture next to the exported file with a matching name (for
-example, `flux.json` and `flux.png`) makes EasyAI use that picture as the
-style's thumbnail.
+1. Pick a **Language** at the top right if needed.
+2. Read the blurb naming which ComfyUI version will be installed.
+3. The **install list** row shows where the list of things to install comes
+   from — either built into Setup, or a `setup-settings.json` file next to
+   it that you can open, edit and reload (see Settings Reference below for
+   what's in it).
+4. **WHERE TO PUT IT** — choose a destination folder (defaults to
+   `~/EasyAI-ComfyUI`); a free-disk-space readout appears alongside it.
+5. Once a folder is chosen, a line appears telling you what Setup found
+   there:
+   - An empty folder: "ComfyUI {version} will be installed here."
+   - A folder that already matches: "✓ ComfyUI {version} is already here,
+     with EasyAI's add-ons at their tested versions" — nothing to do.
+   - An existing but older/newer/mismatched ComfyUI: a message naming both
+     versions, together with a switch to update it to the tested version (or
+     to change it back down, if the found copy is newer). This switch
+     defaults on for an older install and off for a newer one, but only the
+     first time — after that, your own choice is remembered.
+   <!-- TODO: confirm exact wording — this "found ComfyUI here" state, with
+   the update switch, could not be captured for this manual without
+   pointing Setup at a real ComfyUI install; the screenshot above shows the
+   empty-folder default state instead. -->
+6. **WHAT TO INCLUDE** — one card per group of models/add-ons (Image, Video,
+   Prompt Helper), each a simple on/off switch showing how many models and
+   add-ons it includes and its total download size.
+7. **"Download the models ComfyUI does not have yet"** — on by default;
+   models ComfyUI already has are never re-downloaded. Turn this off to
+   install or update just ComfyUI and its add-ons, without any models.
+8. A running total line tells you how much will actually be downloaded,
+   followed by a free-space readout and any warnings — for example, not
+   enough disk space, or models with no automatic download link (which
+   you'd need to copy in yourself), or models that need a HuggingFace or
+   Civitai account.
+9. If any gated models are needed, **HuggingFace key** and **Civitai key**
+   fields let you paste in an access key for the current run only — nothing
+   is saved to disk.
+10. Press **Install**. A confirmation dialog first states the exact download
+    size, destination, and plan. A **Stop** button appears while installing
+    (it finishes the current file, then stops); a progress bar, current
+    file/speed/ETA, and a scrolling log show progress.
 
-#### About EasyAI
+Installing is resumable — if it's interrupted, running Setup again picks up
+where it left off, including part-finished downloads. When it finishes, it
+tells you EasyAI is already configured to use the new ComfyUI, or, if it
+couldn't update EasyAI's settings itself, gives you the exact folder path to
+paste into EasyAI's own Settings.
 
-![](screenshots/11_help-about.png)
+## EasyAI Studio
 
-Shows the installed EasyAI version, a one-line description, and the current
-location of your workflows and results folders — handy if you've forgotten
-where you pointed them in Settings.
+Studio is a maintainer/publishing tool, not something a day-to-day EasyAI
+user needs. It has a navigation rail on the left and a page area on the
+right, rather than a single top-to-bottom flow like Setup.
 
----
+### Add a workflow
 
-### EasyAI Setup (companion installer)
+Package an already-working ComfyUI workflow so EasyAI Setup can install its
+models for everyone else.
 
-![](screenshots/12_easyai-setup.png)
+![](screenshots/17_easyai-studio-add-workflow.png)
 
-> **Note on scope:** EasyAI Setup is a separate program from EasyAI itself —
-> it has its own shortcut/launcher and never reads or changes EasyAI's own
-> settings. It's included here as a companion tool because, in practice, a
-> first-time user with no ComfyUI installation would likely need to run it
-> before opening EasyAI at all. If you already have a working ComfyUI
-> installation, you can skip this section and just point EasyAI at it from
-> [Settings](#settings).
+Browse to a workflow `.json` file, confirm which group it belongs in (Image,
+Video, or Prompt Helper — guessed automatically from the filename but always
+changeable), and press **Have a look**. This requires a running ComfyUI,
+since only the live engine can say which folder each model belongs in. The
+report shows the node count, what EasyAI can drive, every model found and
+its download-link status, and any add-ons needed. Once the report says the
+workflow can safely be added, press **Add to EasyAI**.
 
-EasyAI Setup downloads and installs a specific, known-good version of
-ComfyUI, along with the add-ons and models that EasyAI's built-in workflows
-expect, into a folder you choose.
+### Catalogue
 
-**What to do:**
+Rebuilds the master install list that EasyAI Setup uses, based on what's
+installed on this machine.
 
-1. If needed, change the app's language using the dropdown in the top-right
-   corner.
-2. Under **WHERE TO PUT IT**, confirm or change the install location using
-   **Browse…**. The free disk space on that drive is shown underneath.
-3. Under **WHAT TO INCLUDE**, turn on the toggle for each group of features
-   you want (for example, Image, Video, Prompt Helper). Each group shows how
-   many models and add-ons it includes and its download size; a running
-   total is kept as you toggle groups on and off. Watch for amber warnings
-   about insufficient disk space or models that need special handling, and
-   green notes where no account is required.
-4. If a model needs a Hugging Face or Civitai account, enter your access key
-   in the matching field. These keys are used only for that install run and
-   are never saved to disk.
-5. Click **Install**. A confirmation dialog shows the exact download size and
-   destination before anything downloads.
-6. Watch the progress bar, current file/speed readout, and the log for
-   status. Click **Stop** if you need to pause — downloads resume where they
-   left off the next time you click Install.
+![](screenshots/18_easyai-studio-catalogue.png)
 
-Once installation finishes, open EasyAI, go to **Settings**, and point the
-**ComfyUI folder** at the location you installed to here.
+**Update folders and mirrors** does a lighter refresh; **Rebuild
+everything** does a full rebuild (requires a running ComfyUI). A summary
+line and scrolling log show progress and results.
 
----
+### Download links
+
+Checks that every model's download link still works and still serves the
+right file.
+
+![](screenshots/19_easyai-studio-download-links.png)
+
+**Check the original sources** verifies links against their original
+providers; **Check my mirror** checks the maintainer's own mirror server
+instead. A summary line shows how many links need checking, are mirrored,
+or need an account.
+
+### Languages
+
+Finds text that's been added to the programs since the translation files
+were last updated, for 繁體中文 and 简体中文.
+
+![](screenshots/20_easyai-studio-languages.png)
+
+**What is missing?** reports what needs translating without changing
+anything. **Add new text to the language files** adds the new entries with
+empty values, ready for a translator to fill in.
 
 ## Settings Reference
 
-These settings are stored automatically as you use the app. Most are set
-from the [Settings](#settings) window; a few are remembered in the background
-as you use the Image/Video/Prompt Helper tabs and aren't edited directly.
+All settings live in `settings.json`, kept beside EasyAI (or beside the
+built `.exe`). You should not normally need to edit this file by hand — use
+the Settings dialog instead — but this table explains every value in it.
 
 | Setting | What it does | Default |
 |---|---|---|
-| ComfyUI folder | Folder where your ComfyUI installation lives. | `C:\AI ComfyUI - New Version\ComfyUI_windows_portable` |
-| Start file | Which `.bat` file inside that folder EasyAI runs to start ComfyUI. | `run_nvidia_gpu.bat` |
-| Address | The `host:port` EasyAI talks to ComfyUI on. | `127.0.0.1:8188` |
-| Start ComfyUI automatically when EasyAI opens | Whether EasyAI launches ComfyUI itself if nothing answers at startup. | On |
-| Close ComfyUI when EasyAI closes | Whether EasyAI shuts down a ComfyUI process it started, when you quit EasyAI. Never affects a copy of ComfyUI you started yourself. | On |
-| Give up after (job timeout) | How long EasyAI waits for a single generation before giving up on it. | 1800 seconds (30 minutes) |
-| Wait for the engine up to (launch timeout) | How long EasyAI waits for ComfyUI to finish starting before giving up. | 300 seconds (5 minutes) |
-| Workflows folder | Folder holding your exported workflow files, organized by type. | `<EasyAI folder>/workflows` |
-| Results folder | Folder your generated images/videos are saved into. | `<EasyAI folder>/output` |
-| Shape to start with | The shape chip pre-selected when you pick a new style. | `2:3` |
-| Repeat the same result (seed lock) | Whether "repeat the same result" starts turned on. Remembered separately per tab so locking one tab doesn't reuse another tab's seed. | Off |
-| How many (batch count) | Default number of images/videos requested per run, when a style supports it. | 1 |
-| Let the AI improve my wording first | Default state of the prompt-enhancer switch, when a style has one. | On |
-| Detail (Image) | Remembered detail/megapixel level for the Image tab. | 1.0 MP |
-| Detail (Video) | Remembered detail/megapixel level for the Video tab. | 0.5 MP |
-| Detail warning threshold (Image) | Detail level above which the Image tab shows a memory-cost warning. | 1.5 MP |
-| Detail warning threshold (Video) | Detail level above which the Video tab shows a memory-cost warning (lower than Image, since video pays the cost per frame). | 1.0 MP |
-| Length (default) | Starting value of the Length control on the Video tab. | 5 seconds |
-| Length (minimum / maximum) | Allowed range for the Length control. | 2 / 15 seconds |
-| Length warning threshold | Video length above which EasyAI shows a memory-exhaustion caution. | 8 seconds |
-| Language | The app's current display language. | English (`en`) |
-| Window size and position | Remembered automatically so EasyAI reopens the way you left it. | (none until first saved) |
-| First-run flag | Internal marker for whether the first-run welcome/Settings flow has already been shown. | Off (until first launch completes) |
+| ComfyUI folder | Folder where ComfyUI is installed. | `C:\AI ComfyUI - New Version\ComfyUI_windows_portable` |
+| Start file | Which file inside that folder starts ComfyUI. | `run_nvidia_gpu.bat` |
+| Address | Address EasyAI talks to ComfyUI on. | `127.0.0.1:8188` |
+| Start ComfyUI automatically | Whether EasyAI starts ComfyUI itself if nothing answers. | On |
+| Wait for the engine up to | How long to wait for ComfyUI to start before giving up. | 300 seconds |
+| Give up after | How long a single generation may run before EasyAI gives up on it. | 1800 seconds |
+| Close ComfyUI when EasyAI closes | If EasyAI started ComfyUI, close it again on exit. Never closes a ComfyUI started some other way. | On |
+| Close EasyAI when the queue is empty | Queue tab switch; auto-closes EasyAI once nothing is left queued. Always resets to off at the start of every session. | Off |
+| Workflows folder | Folder holding your workflow files. | `workflows` folder beside EasyAI |
+| Results folder | Folder generated files are saved into. | `output` folder beside EasyAI |
+| Shape to start with | Shape chip pre-selected when you pick a workflow. | `2:3` |
+| Repeat the same result (seed lock) | Whether "repeat the same result" starts ticked. | Off |
+| Model choice | Remembered alternate model per workflow (Model picker), without changing the workflow file itself. | (none) |
+| How many (batch count) | Default value of the batch-count box. | 1 |
+| Let the AI improve my wording first | Default state of the prompt-enhancer switch. | On |
+| Image Detail | Remembered Detail value for the Image tab. | 1.0 MP |
+| Video Detail | Remembered Detail value for the Video tab. | 0.5 MP |
+| Image Detail warning level | Detail value above which the Image tab warns about memory use. | 1.5 MP |
+| Video Detail warning level | Same, for Video (lower, since video pays the cost per frame). | 1.0 MP |
+| Video length | Length box's starting value. | 5 seconds |
+| Video length range | Minimum/maximum of the Length box. | 2–15 seconds |
+| Video length warning level | Above this, the Length control shows a memory caution. | 8 seconds |
+| Language | Which language the app displays in. | English |
+| Window size/position | Remembered between sessions. | (none) |
+| First-run done | Whether the first-run welcome/Settings flow has already been shown. | Off |
 
-<!-- TODO: confirm whether a dark/light theme setting is genuinely user-facing anywhere in the app, or is fixed/internal only — no theme control was found in the Settings window during manual preparation, so "theme" is intentionally omitted from this table as a user-adjustable setting -->
+<!-- TODO: confirm — a `theme` setting ("dark") exists in the settings file,
+but no dark/light toggle was found anywhere in Settings, Setup, or Studio.
+Worth confirming with the developer whether theme switching is meant to be
+user-facing before documenting a control that doesn't seem to exist. -->
 
----
+Each workflow also keeps its own small settings file alongside it (created
+automatically the first time the workflow loads, and never overwritten
+afterward), storing its display name, model family, and all of the Manifest
+Editor's node/input bindings — so your corrections in Set up… always
+survive re-exporting the same workflow later.
+
+### EasyAI Setup's install list (`setup-settings.json`)
+
+The first time you run EasyAI Setup, it writes an editable `setup-
+settings.json` file beside itself, and reads that instead of its built-in
+list from then on. You can open it (via Setup's **Open the install list**
+button) to customize:
+
+- Where models and workflows get installed.
+- Which specific models are included, and where each one downloads from.
+- Which workflows are included in each group.
+
+If this file goes out of date compared to a newer version of Setup, an
+untouched file is quietly replaced; an edited one is kept, with a warning
+telling you what's missing and an offer to switch to the current list
+(keeping your old file as a backup).
 
 ## Troubleshooting
 
-**The workflow list shows everything as "NOT CHECKED."**
-This is normal until EasyAI has connected to a running ComfyUI server —
-EasyAI can't confirm a style's requirements are met until it can actually ask
-ComfyUI what's installed. Start ComfyUI (or let EasyAI start it for you) and
-the statuses will update once the engine connects. Use `F5` or **AI engine →
-Check it is running** to force a re-check.
+- **A workflow's status dot is amber or red.** This is the first place to
+  look. Green with "READY · <engine name>" means all good. Amber ("CHECK SET
+  UP" or "NOT CHECKED") means EasyAI guessed the workflow's setup and wants
+  you to confirm it in Set up…, or hasn't checked yet. Red ("MISSING
+  ADD-ON" / "MISSING MODEL") names the exact file that's missing from your
+  ComfyUI install — install it (via EasyAI Setup, or by hand) and press
+  Refresh. Red "NEEDS RE-EXPORT" means the file isn't a valid ComfyUI API
+  export — a plain "Save" in ComfyUI is not enough; you must use ComfyUI's
+  Workflow → Export (API) option.
+- **The engine pill or status-bar dot says "down"/"not running".** Check
+  this first if Create isn't working. Try **AI engine → Check it is
+  running** (`F5`), or **AI engine → Start it now**, or open Settings and
+  press **Test now**.
+- **No VRAM readout in the status bar.** This only appears once the engine
+  is running and reporting a graphics device — it isn't a fault by itself,
+  but its absence usually means the engine isn't connected yet.
+- **"ComfyUI closed straight away."** Usually means something is wrong with
+  the ComfyUI install itself. Try running the start file directly (outside
+  EasyAI) to see the actual error message.
+  <!-- TODO: confirm exact wording of this message. -->
+- **"The AI engine did not start within N seconds."** ComfyUI took longer
+  to start than the "Wait for the engine up to" setting allows — either wait
+  longer by raising that value in Settings, or check that ComfyUI can start
+  on its own.
+- **"EasyAI cannot reach ComfyUI"** when pressing Create. The engine isn't
+  running or isn't reachable at the configured address — check Settings.
+- **"Almost there" dialog.** A required file input is empty; the dialog
+  lists exactly which ones. Attach the missing files and press Create
+  again.
+- **"The workflow finished but produced no text."** (Prompt Helper only) —
+  the underlying workflow needs a node that outputs text (a Preview Any or
+  Show Text node); without one there's nothing for EasyAI to read back.
+  <!-- TODO: confirm exact wording. -->
+- **"This file does not carry a prompt…"** on Read a prompt. The file has
+  lost its embedded prompt data — this commonly happens after re-saving,
+  sending through a messaging app, or downloading from most websites. There
+  is no way to recover the prompt from a file like this.
+- **"best guess" label on Read a prompt.** Shown in an amber warning colour
+  when the file can't be matched to one of your own workflows — EasyAI is
+  still showing you a recovered prompt, but can't be fully sure it picked
+  the right text box out of the file's embedded data.
+- **A reference-picture slot disappeared when you removed a picture in the
+  middle of the list.** This is expected — the remaining pictures shift up
+  so there's never a gap, since the workflow numbers them by position.
+- **A generated file's size doesn't exactly match the shape you chose.**
+  Some engines (the LTX family) round both dimensions down to the nearest
+  multiple of 64 after computing the size, so the final file can be very
+  slightly smaller than the shape chip's label suggested. This is normal.
+- **Turning off "Let the AI improve my wording first" changes nothing
+  visible right away, but the workflow behaves differently.** This switch
+  actually rewires the workflow's internal graph to skip the enhancer
+  entirely (rather than just hiding a setting), so the language model for
+  that step never loads — this is expected behaviour, not a bug.
+- **"Close EasyAI when the queue is empty" was on yesterday but is off
+  today.** This is deliberate — the switch is a session-only convenience
+  and always resets to off each time you start EasyAI, so it can't cause an
+  unexpected auto-close later.
+- **EasyAI won't close while jobs are queued.** This is a safety feature —
+  choose **Keep working** to go back to the Queue tab, or **Cancel
+  everything and close** if you really want to stop now.
+- **"Close ComfyUI when EasyAI closes" didn't close a ComfyUI I started by
+  hand.** This is expected — EasyAI only ever closes a ComfyUI process that
+  it itself launched, never one you started manually or on another
+  machine.
+- **EasyAI Setup's update seems cautious.** That's by design: it never
+  overwrites your own edits, keeps a backup of the previous state, and
+  automatically restores a replaced add-on if its new version fails to
+  install.
+- **EasyAI guessed the wrong ComfyUI folder on first run.** This is why the
+  first-run welcome message exists — press **Test now** in Settings after
+  changing the folder to confirm EasyAI can actually reach ComfyUI there
+  before relying on it.
 
-**A style is greyed out and says "MISSING ADD-ON" or "MISSING MODEL."**
-The connected ComfyUI installation is missing a custom node or model file
-this workflow needs. The status text names the missing add-on or model file —
-install it into your ComfyUI installation (or use EasyAI Setup if you're
-setting up from scratch), then press **Refresh**.
+## Needs Confirmation
 
-**A workflow says "NEEDS RE-EXPORT."** {#a-workflow-says-needs-re-export}
-ComfyUI's plain **Save** does not produce a file EasyAI can use. Open the
-workflow in ComfyUI and use **Workflow → Export (API)** instead, then replace
-the file in your workflows folder and press **Refresh**. EasyAI deliberately
-does not trust a workflow's "last run" data embedded from a plain save,
-because in practice that embedded copy is very often out of date.
+The following items could not be verified against the running app or exact
+source text in time for this manual, and are flagged here rather than
+guessed:
 
-<!-- TODO: confirm the exact on-screen error text EasyAI shows for this case -->
-
-**"EasyAI cannot reach ComfyUI" when you press Create.**
-The engine isn't running or isn't reachable at the address in Settings. Check
-the engine status pill at the top of the main window; open **Settings** and
-click **Test now**, or use **AI engine → Start it now**.
-
-**"ComfyUI closed straight away."**
-The `.bat` file EasyAI tried to launch exited immediately — usually a sign of
-a broken or incomplete ComfyUI install. Try running that same `.bat` file
-directly (outside EasyAI) to see the actual error ComfyUI reports.
-
-**"The AI engine did not start within N seconds."**
-ComfyUI took longer to start than the "Wait for the engine up to" setting
-allows. Try running the `.bat` file by hand to see what's happening, or
-increase the wait time in Settings.
-
-**"Almost there" dialog when you press Create.**
-A required file input (a picture, sound, or video slot) is still empty. Fill
-in the listed slot(s) and try again.
-
-**Prompt Helper says "The workflow finished but produced no text."** {#prompt-helper-produced-no-text}
-The underlying workflow doesn't have a node set up to show its output text.
-This typically needs fixing in the workflow itself (via ComfyUI), or by
-checking the workflow's setup with **Set up…**.
-
-**"The AI engine finished but produced no files."**
-Either the workflow has no node configured to save its output, or the job
-was stopped before it finished. Check the workflow's setup, or try running it
-again without stopping it.
-
-**The finished image/video's size doesn't exactly match the Shape you
-picked.**
-Some engines round the final width and height to a multiple of a fixed grid
-size after computing your requested shape, so the saved file can be a few
-pixels off from the label on the shape chip. This is expected behavior for
-those engines, not an error.
-
-**Detail slider won't go as low as you expect.**
-Some workflows are built with a lower minimum than EasyAI's normal range;
-EasyAI keeps that workflow's own lower floor instead of rounding it up, so it
-doesn't change a result the workflow's author tuned or risk running the
-workflow the way it wasn't designed for.
-
-**A file slot that looks optional in ComfyUI is still required in EasyAI.**
-EasyAI only marks a file slot as safely skippable when it can confirm, from a
-live ComfyUI connection, that every input relying on it is optional. Without
-a live connection to check, EasyAI plays it safe and still asks for the file.
-
-**My first-run guess at the ComfyUI folder was wrong.**
-This is exactly what the first-run welcome message and **Test now** button in
-Settings are for — open **Settings**, browse to the correct folder, and click
-**Test now** to confirm before saving.
+- Exact wording of several error messages: "ComfyUI closed straight away.",
+  "The workflow finished but produced no text.", "The AI engine finished
+  but produced no files.", and the precise NEEDS RE-EXPORT explanation text.
+- Exactly where the current language selection is stored (it's kept
+  separately from the main settings file so all three programs agree, but
+  the precise file/location wasn't confirmed).
+- Whether a dark/light **theme** setting is genuinely user-facing anywhere,
+  or purely internal — no toggle for it was found in Settings, Setup, or
+  Studio, despite a `theme` value existing in the settings file.
+- The practical minimum graphics-card memory (VRAM) needed — the stated
+  requirement is "an NVIDIA graphics card," tested on 16 GB, but no lower
+  bound is enforced or documented elsewhere.
+- The exact wording and full behaviour of EasyAI Setup's licence/key screen
+  for gated models (HuggingFace/Civitai), particularly around whether any
+  licence text gets saved into the install folder.
+- The Model picker screen, and the Reference 2+ reveal behaviour, and
+  EasyAI Setup's "found an existing ComfyUI here" update-switch screen could
+  not be captured as screenshots for this manual (each needs a real ComfyUI
+  models folder or install to demonstrate) — described here from the design
+  outline only.

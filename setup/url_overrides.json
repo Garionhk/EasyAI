@@ -39,5 +39,7 @@
   ],
   "KNP_000003000.safetensors": "https://civitai.com/api/download/models/3147117?fileId=3027612",
   "qwen3vl_4b_fp8_scaled.safetensors": "https://huggingface.co/Comfy-Org/Qwen3-VL/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors",
-  "qwen_image_vae.safetensors": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors"
+  "qwen_image_vae.safetensors": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors",
+  "flux3_image_klein_sd_int8_convrot.safetensors": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3-image-klein-int8-convrot.safetensors",
+  "moss_image_sft_int8_convrot.safetensors": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_int8_convrot.safetensors"
 }

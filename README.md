@@ -1,6 +1,6 @@
 # EasyAI
 
-**v1.1.0** · Windows · Apache 2.0
+**v1.2.0** · Windows · Apache 2.0
 
 A simple desktop front end for ComfyUI, for people who just want to make
 something without learning the node graph. Pick a style, type what you want,
@@ -36,8 +36,8 @@ only the models ComfyUI doesn't already have. See
 [EasyAI Setup](#easyai-setup).
 
 **You need** Windows and an NVIDIA graphics card. The workflows were built on
-a 16 GB card. The model downloads are large — about 76 GB for Image, 138 GB for
-Video and 5 GB for Prompt Helper.
+a 16 GB card. The model downloads are large — about 104 GB for Image, 138 GB
+for Video and 5 GB for Prompt Helper.
 
 ### Running from source
 
@@ -53,7 +53,21 @@ download. `EasyAISetup.bat` and `EasyAI Studio.bat` start the other two.
 
 ---
 
-## What's new in v1.1.0
+## What's new in v1.2.0
+
+- **Flux 3 Klein — Image Edit**, with up to **10 reference pictures**. The
+  model's own prompt upsampler sees every picture too.
+- **MOSS-Image — Text to Image**, with a negative prompt, shape and detail.
+- **Layout boxes** — draw where things go and describe each one, for Flux 3
+  Klein and MOSS-Image. See [Layout boxes](#layout-boxes).
+- **An optional LoRA** for workflows that leave a slot for one — MOSS-Image
+  does. Pick one of yours, or None.
+- ComfyUI **0.42.1**. EasyAI Setup installs it, or updates an existing
+  ComfyUI to it.
+- The **Detail** warning now follows the workflow: a workflow built at 2 MP is
+  not "bigger than it was built for" at 2 MP.
+
+## What was new in v1.1.0
 
 - **Qwen Image 2.1** — image edit with up to **10 reference pictures**, and
   text to image. Both install with the Image group.
@@ -69,7 +83,7 @@ download. `EasyAISetup.bat` and `EasyAI Studio.bat` start the other two.
   never downloads a model ComfyUI already has.
 - **An install list you can edit** — `setup-settings.json`, beside EasyAI
   Setup, says where every model and workflow comes from and where it goes.
-- ComfyUI **0.37.0**, with add-ons pinned to the versions it was tested with.
+- ComfyUI 0.37.0, with add-ons pinned to the versions it was tested with.
 - **Chinese** — Traditional and Simplified, alongside English.
 
 ---
@@ -274,7 +288,7 @@ A workflow that loads a picture will not run until one is chosen — the filenam
 saved inside the workflow points at *your* machine, not the viewer's, so EasyAI
 asks for it by name rather than failing inside ComfyUI.
 
-### Reference groups that grow — Qwen Image 2.1
+### Reference groups that grow — Qwen Image 2.1, Flux 3 Klein
 
 Some nodes take their reference pictures as an *auto-growing group*.
 Qwen Image 2.1's encoder accepts `images.image_1` up to `images.image_16`. An
@@ -293,6 +307,12 @@ The slots appear **one at a time**: filling one reveals the next, and emptying
 one in the middle moves the rest up. The node numbers pictures by position, so
 a gap would silently turn your third picture into `<image 2>` in the prompt.
 This way *Reference 3* is always `<image 3>`.
+
+A loader feeding **several** single-picture groups grows them together.
+Flux 3 Klein's edit workflow hands its picture both to the edit node and to the
+batch its prompt upsampler looks at; each added picture goes to both, so the
+upsampler describes every picture the model sees. (Flux 3 counts from
+`<ref_image_0>`, so *Reference 1* is `<ref_image_0>` there.)
 
 ### Files you can leave out
 
@@ -330,6 +350,75 @@ what someone meant. This is a guardrail, not a limit. For text-only Qwen
 Image 2.1, use **Qwen Image 2.1 - Text to Image**, which ships alongside the
 image-edit workflow.
 
+## Layout boxes
+
+Flux 3 Klein and MOSS-Image can be told *where* things go. Under the prompt,
+**Layout boxes → Draw boxes…** opens a canvas:
+
+- **Drag** to draw a box. Click a box to pick it, drag it to move it, drag its
+  corner to resize it.
+- Give each box a **kind** and a **description** — *Object*, *Text* (with the
+  exact words to render) or, for MOSS-Image, *Character*.
+- Boxes are drawn from the back forwards: the background first, the things in
+  front last. **Move back / Move forward** change the order.
+
+For Flux 3 Klein the canvas shows **Reference 1**, the picture being edited, so
+the boxes sit on what you are changing. Refer to a box in the prompt by its
+number — *Change `<obj_1>` into a straw hat* — counting every box, text boxes
+included.
+
+**MOSS-Image keeps its boxes in the prompt.** MOSS reads a layout written as
+JSON in the prompt itself — `{"summary": {...}, "items": [...],
+"bbox_coord_space": "abs_centralized", "bbox_format": "yxyx"}`, the same form
+ComfyUI's MOSS-Image Layout Prompt node writes. So:
+
+- A prompt that already holds such a layout opens in the editor with every
+  item drawn — its kind, caption, text and palette.
+- Pressing **OK** writes the boxes back into the prompt. The summary — caption,
+  meta, palette — stays exactly as it was.
+- With **no prompt**, drawing boxes fills the prompt with the layout. With
+  plain words, they become the layout's caption.
+- **Clear** takes the boxes out again; a layout that only had a caption goes
+  back to plain words.
+
+**Reading one back.** The **Read a prompt** tab gives a MOSS-Image picture's
+layout back too, and **Use this in Image** picks the MOSS workflow, the
+picture's shape and its layout, so **Edit boxes…** opens with every box where
+it was:
+
+- A prompt fed through a prompt batcher (one prompt per line) is followed back
+  to the lines. Each picture of the run gets its own line, found from its
+  place among the run's files; a **Line** box steps through the others.
+- A picture made with boxes drawn in ComfyUI's own canvas gets its words and
+  boxes joined into a layout again.
+
+The canvas has the size MOSS will make from the shape and detail you picked,
+since the layout's pixels are measured on it. Change either after drawing and
+the boxes are moved to match when you press Create. A layout written for a
+bigger or differently shaped picture is cut to fit, and the editor says so.
+
+With no boxes the layout nodes are taken out of the run and the prompt is used
+as plain text, so a workflow with boxes works exactly like one without until
+you draw some. Boxes are kept per workflow until EasyAI closes.
+
+The prompt helper can rewrite a layout away, so a note appears when both are
+on. MOSS-Image turns its helper off when you draw boxes, as ComfyUI's own
+template does; Flux 3 Klein's upsampler is built to read the layout, so it
+stays as you set it.
+
+## Optional LoRA
+
+A workflow can leave a slot for a LoRA of your own: a LoRA loader set to
+strength **0**. EasyAI shows a **LoRA (optional)** dropdown for it, with a
+strength. **None** — the default — takes the loader out of the run, so the
+author's own file is never needed and nothing has to be installed. A LoRA at
+any other strength is part of the workflow's recipe and is left alone.
+
+The list holds the LoRAs in the folder named after the model's — `Moss\` for
+MOSS-Image — since a LoRA only works with the family it was trained for. With
+no such folder, every LoRA ComfyUI has is offered. The choice is remembered
+per workflow.
+
 ## Prompt enhancer (LTX 2.5)
 
 LTX 2.5 workflows run the prompt through a language model first
@@ -340,6 +429,10 @@ another multi-gigabyte model and adds time.
 When EasyAI finds an enhancer node it shows a tick box:
 **"Let the AI improve my wording first"** — on by default, remembered between
 runs.
+
+Flux 3 Klein and MOSS-Image choose between the helper's words and yours with
+a switch node, set opposite ways in the two. The tick box sets that switch, so
+it means the same thing in both.
 
 Switching it off is real rewiring, not a flag. An API workflow has no concept of
 a muted node, so EasyAI points everything that read from the enhancer at
@@ -493,7 +586,7 @@ is, then Install.
 **What it installs** is fixed by `setup/catalog.json`, never "whatever is
 newest", so a viewer can't end up with a combination nobody has tested:
 
-- **ComfyUI 0.37.0.** The official Windows portable (NVIDIA), checked against
+- **ComfyUI 0.42.1.** The official Windows portable (NVIDIA), checked against
   GitHub's SHA-256 before seven minutes of unpacking, then pinned to the exact
   commit.
 - **Only the add-ons the chosen workflows need**, each at the version or
@@ -508,15 +601,15 @@ carries on where it left off — part-finished downloads included.
 
 Point Setup at a folder holding a ComfyUI and it says what it found:
 
-- *ComfyUI 0.37.0 will be installed here* — an empty folder.
-- *✓ ComfyUI 0.37.0 is already here, with EasyAI's add-ons at their tested
+- *ComfyUI 0.42.1 will be installed here* — an empty folder.
+- *✓ ComfyUI 0.42.1 is already here, with EasyAI's add-ons at their tested
   versions* — nothing to do.
-- *Found ComfyUI 0.33.0 here. EasyAI is tested with 0.37.0.* — with a switch:
+- *Found ComfyUI 0.37.0 here. EasyAI is tested with 0.42.1.* — with a switch:
   **Update ComfyUI and EasyAI's add-ons to the tested versions**.
 
 The switch is on for an older ComfyUI and off for a newer one, since someone
 chose that version. Before anything starts, a summary lists exactly what will
-happen — *Move ComfyUI from 0.33.0 to 0.37.0*, *Bring 1 add-on to its tested
+happen — *Move ComfyUI from 0.37.0 to 0.42.1*, *Bring 1 add-on to its tested
 version*, *Download 4 models*.
 
 How the update behaves:
@@ -613,7 +706,13 @@ file records which built-in list it came from:
 
 A few models need a HuggingFace or Civitai account and a licence accepted on
 the model's page. Where the licence allows it, those files are mirrored on the
-EasyAI server, so viewers need no account. The licence text is saved into the
+EasyAI server, so viewers need no account.
+
+**Flux 3 Klein is not mirrored.** Its four files come from Black Forest Labs'
+own repository: accept the licence on
+[black-forest-labs/flux-3-image-klein-comfy](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy)
+and paste a HuggingFace key into Setup. Everything else in the Image group
+needs no account. The licence text is saved into the
 install folder, as the licence requires. The key boxes stay as a fallback for
 when the mirror can't be reached. Keys are used for that run only and never
 written to disk.
@@ -646,7 +745,9 @@ demonstrably works:
   — each checkout's git commit, or a registry pack's `pyproject.toml`.
   ComfyUI-Manager's snapshots used to be the source, but they stop being
   written when Manager isn't loaded, and the newest one here predated the
-  update to 0.37.0. Folders named `*.disabled` are skipped, as ComfyUI skips
+  update to 0.37.0. **ComfyUI itself is pinned to a release**
+  (`COMFYUI_PIN` in `tools/make_catalog.py`), not to whatever commit the
+  building machine runs — that one may be ahead of any published release. Folders named `*.disabled` are skipped, as ComfyUI skips
   them.
 - **Which models and add-ons each group needs** comes from EasyAI's own
   workflow files. A test fails if a workflow in `workflows/` is missing from
@@ -770,7 +871,7 @@ tests/
 python -m pytest tests/ -q
 ```
 
-861 tests, no ComfyUI needed. The scripts that do need a running server are
+972 tests, no ComfyUI needed. The scripts that do need a running server are
 separate and are run by hand:
 
 ```bash

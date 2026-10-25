@@ -1,20 +1,20 @@
 {
   "generated": "tools/make_catalog.py",
   "comfyui": {
-    "version": "0.37.0",
-    "commit": "73c9bad4d21e7addbe1d13bc92eee0f1431b017d",
+    "version": "0.42.1",
+    "commit": "63be2f9b82ad0dac88a7ceaa28a9cf3154125a18",
     "portable": {
-      "release": "v0.37.0",
+      "release": "v0.42.1",
       "asset": "ComfyUI_windows_portable_nvidia.7z",
-      "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.37.0/ComfyUI_windows_portable_nvidia.7z",
-      "bytes": 1925204508,
-      "sha256": "7805f634fab51f63a238aaf0cfe2a9833bb7c86ddfc8400a60919f44460d7d65",
+      "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.42.1/ComfyUI_windows_portable_nvidia.7z",
+      "bytes": 2018444114,
+      "sha256": "496afd18790ec685d99ebba2edf200d7371a29fbdd3a992bb0f4f52f244a6874",
       "cuda": "13.0",
       "fallback": {
         "asset": "ComfyUI_windows_portable_nvidia_cu126.7z",
-        "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.37.0/ComfyUI_windows_portable_nvidia_cu126.7z",
-        "bytes": 1867201814,
-        "sha256": "4f8c587c8319a3595dcdc6b8fbfc7234d2d02fa6b1a328c1ab3e819c97d95fb8",
+        "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.42.1/ComfyUI_windows_portable_nvidia_cu126.7z",
+        "bytes": 1910153206,
+        "sha256": "0506abc6563ea5928a052fe0bc0b32c2a063098558bd593fe39345a27f1e47fc",
         "cuda": "12.6",
         "why": "for drivers too old for CUDA 13"
       }
@@ -26,11 +26,13 @@
       "workflows": [
         "Flux 2 Klein - Text to Image.json",
         "Flux 2 Klein Portrait.json",
+        "Flux 3 Klein - Image Edit - GarionHK.json",
         "image_anima_base_v1 - GarionHK.json",
         "image_qwen_image_2_1_image_edit API - GarionHK.json",
         "image_qwen_image_2_1_t2i api - GarionHK.json",
         "Kera2Edit - ID Transfer - GarionHK.json",
         "Krea 2 t2i.json",
+        "Moss Image - Text to Image - GarionHK.json",
         "ZIT - GarionhHK.json"
       ],
       "nodes": [
@@ -44,6 +46,10 @@
         "Flux 2\\Qwen3-8B-Q4_K_M.gguf",
         "Ideogram\\flux2-vae.safetensors",
         "flux2-vae.safetensors",
+        "Flux 3 Klein\\flux3_image_klein_sd_int8_convrot.safetensors",
+        "Flux 3 Klein\\qwen3vl_4b_int8_convrot.safetensors",
+        "Flux 3 Klein\\flux2-vae.safetensors",
+        "Flux 3 Klein\\qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors",
         "Anima\\qwen_3_06b_base.safetensors",
         "Anima\\qwen_image_vae.safetensors",
         "Anima\\anima_baseV10.safetensors",
@@ -57,11 +63,14 @@
         "Flux Krea 2\\krea2RealVae_v10.safetensors",
         "Flux Krea 2\\qwen_image_vae.safetensors",
         "Flux Krea 2\\KNP_000003000.safetensors",
+        "Moss\\moss_image_sft_int8_convrot.safetensors",
+        "Moss\\qwen3.5_9b_w4a8_gptq.safetensors",
+        "Moss\\flux2-vae_small.safetensors",
         "ZIT\\qwen_3_4b.safetensors",
         "ZI\\z_image_turbo_bf16.safetensors",
         "ae.safetensors"
       ],
-      "bytes": 81210741948
+      "bytes": 111964289425
     },
     "video": {
       "label": "Video",
@@ -189,6 +198,30 @@
       "bytes": 336213556,
       "url": "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"
     },
+    "Flux 3 Klein\\flux3_image_klein_sd_int8_convrot.safetensors": {
+      "dir": "diffusion_models",
+      "bytes": 5827874779,
+      "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3-image-klein-int8-convrot.safetensors",
+      "gated": true
+    },
+    "Flux 3 Klein\\qwen3vl_4b_int8_convrot.safetensors": {
+      "dir": "clip",
+      "bytes": 4858559240,
+      "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/text_encoders/qwen3vl_4b_int8_convrot.safetensors",
+      "gated": true
+    },
+    "Flux 3 Klein\\flux2-vae.safetensors": {
+      "dir": "vae",
+      "bytes": 336211292,
+      "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/vae/flux2-vae.safetensors",
+      "gated": true
+    },
+    "Flux 3 Klein\\qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors": {
+      "dir": "clip",
+      "bytes": 6724090780,
+      "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/text_encoders/qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors",
+      "gated": true
+    },
     "Anima\\qwen_3_06b_base.safetensors": {
       "dir": "clip",
       "bytes": 1192135096,
@@ -256,6 +289,21 @@
       "gated": true,
       "mirror": "https://focaltek.com/owncloud/index.php/s/kIMIPiUNsBlJE1f/download",
       "sha256": "6ec564e04eed317ae24093b4907004ac59a7c528d19d025bb41b4d719c4d16ec"
+    },
+    "Moss\\moss_image_sft_int8_convrot.safetensors": {
+      "dir": "diffusion_models",
+      "bytes": 5413698958,
+      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_int8_convrot.safetensors"
+    },
+    "Moss\\qwen3.5_9b_w4a8_gptq.safetensors": {
+      "dir": "clip",
+      "bytes": 7343591088,
+      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/text_encoders/qwen3.5_9b_w4a8_gptq.safetensors"
+    },
+    "Moss\\flux2-vae_small.safetensors": {
+      "dir": "vae",
+      "bytes": 249521340,
+      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/vae/flux2-vae_small.safetensors"
     },
     "ZIT\\qwen_3_4b.safetensors": {
       "dir": "clip",

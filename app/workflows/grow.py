@@ -65,13 +65,20 @@ def new_node_id(consumer: str, name: str) -> str:
 def plan(graph: dict, caps, limit: int = MAX_PICTURES) -> list[dict]:
     """Which groups to grow, and into which names. Needs the running engine.
 
-    Returns one entry per group::
+    Returns one entry per picture loader that gets company::
 
         {"node": "459:474", "group": "images", "loader": "470",
-         "names": ["image_1", ..., "image_10"]}
+         "names": ["image_1", ..., "image_10"],
+         "also": [{"node": "50", "group": "images", "names": [...]}]}
 
     ``names`` is the whole group as it should end up, first member included,
     so the manifest alone is enough to rebuild it offline.
+
+    ``also`` lists other groups the same loader feeds. Flux 3 Klein's edit
+    workflow hands its picture both to the edit node and to a batch the prompt
+    upsampler looks at; growing only the first would let the model see ten
+    pictures while the upsampler describes one. Every group a loader feeds
+    grows in step, sharing the added loaders.
     """
     if caps is None or not getattr(caps, "available", False):
         return []
@@ -84,10 +91,10 @@ def plan(graph: dict, caps, limit: int = MAX_PICTURES) -> list[dict]:
             continue
         members.setdefault((consumer, group), []).append((member, source))
 
-    specs = []
-    room = limit - _picture_loader_count(graph)
+    # Single-picture groups the node can grow, collected per loader.
+    by_loader: dict[str, list[tuple[str, str, list[str]]]] = {}
     for (consumer, group), wired in sorted(members.items()):
-        if len(wired) != 1 or room <= 0:
+        if len(wired) != 1:
             continue
         class_type = str((graph.get(consumer) or {}).get("class_type", ""))
         grow = caps.autogrow(class_type, group)
@@ -98,13 +105,27 @@ def plan(graph: dict, caps, limit: int = MAX_PICTURES) -> list[dict]:
         if member not in names:
             continue
         # Continue from the member already wired, in the node's own order.
-        start = names.index(member)
-        wanted = names[start:start + 1 + room]
-        if len(wanted) < 2:
+        by_loader.setdefault(loader, []).append(
+            (consumer, group, names[names.index(member):]))
+
+    specs = []
+    room = limit - _picture_loader_count(graph)
+    for loader, groups in sorted(by_loader.items()):
+        if room <= 0:
+            break
+        # As many as the smallest group takes, so every group gets each one.
+        count = min(len(names) for _, _, names in groups)
+        count = min(count, 1 + room)
+        if count < 2:
             continue
-        specs.append({"node": consumer, "group": group, "loader": loader,
-                      "names": wanted})
-        room -= len(wanted) - 1
+        (consumer, group, names), others = groups[0], groups[1:]
+        spec = {"node": consumer, "group": group, "loader": loader,
+                "names": names[:count]}
+        if others:
+            spec["also"] = [{"node": c, "group": g, "names": n[:count]}
+                            for c, g, n in others]
+        specs.append(spec)
+        room -= count - 1
     return specs
 
 
@@ -119,12 +140,9 @@ def apply(graph: dict, specs: list[dict]) -> list[str]:
         template = graph.get(spec.get("loader"))
         if not isinstance(consumer, dict) or not _is_picture_loader(template):
             continue
-        inputs = consumer.setdefault("inputs", {})
-        group = spec.get("group", "")
-        for name in (spec.get("names") or [])[1:]:
-            key = f"{group}.{name}"
-            if key in inputs:
-                continue
+        targets = [spec] + [a for a in (spec.get("also") or [])
+                            if isinstance(graph.get(a.get("node")), dict)]
+        for position, name in enumerate((spec.get("names") or [])[1:], 1):
             node_id = new_node_id(spec["node"], name)
             if node_id not in graph:
                 clone = copy.deepcopy(template)
@@ -132,7 +150,13 @@ def apply(graph: dict, specs: list[dict]) -> list[str]:
                     (template.get("_meta") or {}).get("title") or "Load Image")
                 graph[node_id] = clone
                 added.append(node_id)
-            inputs[key] = [node_id, 0]
+            for target in targets:
+                names = target.get("names") or []
+                if position >= len(names):
+                    continue
+                inputs = graph[target["node"]].setdefault("inputs", {})
+                key = f"{target.get('group', '')}.{names[position]}"
+                inputs.setdefault(key, [node_id, 0])
     return added
 
 

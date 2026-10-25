@@ -50,6 +50,8 @@ DEFAULTS = {
     #: value the engine offered; the workflow file itself is never rewritten,
     #: so it can still be shared or re-added unchanged.
     "model_choice": {},
+    #: The optional LoRA picked per workflow: {name: {"file": ..., "strength": ...}}.
+    "lora_choice": {},
     "batch_count": 1,
     "use_prompt_enhancer": True,
     #: Output pixel budget in megapixels (0.5 - 2.0), used when a workflow

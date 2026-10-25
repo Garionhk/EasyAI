@@ -53,26 +53,37 @@ GATED_REPOS = (
     # Civitai model 3147117 redirects to auth.civitai.com without a key, unlike
     # most Civitai files, which download anonymously.
     "civitai.com/api/download/models/3147117",
+    # Flux 3 Klein: Black Forest Labs' own repository, behind their licence.
+    "huggingface.co/black-forest-labs/flux-3-image-klein-comfy/",
 )
 
-#: The portable to install: the v0.37.0 release, the one this machine runs.
-#: Sizes and hashes are GitHub's own, so a truncated or substituted archive is
-#: refused before seven minutes of unpacking. ComfyUI's checkout is then pinned
-#: to the exact commit as well.
+#: The ComfyUI release EasyAI is tested with, and its exact commit. This is a
+#: release, not whatever this machine happens to run: the machine that builds
+#: the catalogue may be a few commits ahead (it was 19 past v0.42.0), and
+#: pinning that would hand everyone a build nobody published.
+COMFYUI_PIN = {
+    "version": "0.42.1",
+    "commit": "63be2f9b82ad0dac88a7ceaa28a9cf3154125a18",
+}
+
+#: The portable to install: the v0.42.1 release. Sizes and hashes are GitHub's
+#: own (the release API's asset digests), so a truncated or substituted archive
+#: is refused before seven minutes of unpacking. ComfyUI's checkout is then
+#: pinned to the exact commit as well.
 PORTABLE = {
-    "release": "v0.37.0",
+    "release": "v0.42.1",
     "asset": "ComfyUI_windows_portable_nvidia.7z",
-    "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.37.0/"
+    "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.42.1/"
            "ComfyUI_windows_portable_nvidia.7z",
-    "bytes": 1925204508,
-    "sha256": "7805f634fab51f63a238aaf0cfe2a9833bb7c86ddfc8400a60919f44460d7d65",
+    "bytes": 2018444114,
+    "sha256": "496afd18790ec685d99ebba2edf200d7371a29fbdd3a992bb0f4f52f244a6874",
     "cuda": "13.0",
     "fallback": {
         "asset": "ComfyUI_windows_portable_nvidia_cu126.7z",
-        "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.37.0/"
+        "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.42.1/"
                "ComfyUI_windows_portable_nvidia_cu126.7z",
-        "bytes": 1867201814,
-        "sha256": "4f8c587c8319a3595dcdc6b8fbfc7234d2d02fa6b1a328c1ab3e819c97d95fb8",
+        "bytes": 1910153206,
+        "sha256": "0506abc6563ea5928a052fe0bc0b32c2a063098558bd593fe39345a27f1e47fc",
         "cuda": "12.6",
         "why": "for drivers too old for CUDA 13",
     },
@@ -177,6 +188,26 @@ def api_graphs() -> dict[str, list[tuple[Path, dict]]]:
     return out
 
 
+def optional_inputs(path: Path) -> set[tuple[str, str]]:
+    """(node, input) pairs a workflow's manifest marks as the user's choice.
+
+    An optional LoRA names whatever file its author parked there - a personal
+    LoRA nobody else has. EasyAI's "None" takes that loader out of the run, so
+    the file is not part of what Setup installs.
+    """
+    manifest = path.with_name(path.stem + ".manifest.json")
+    try:
+        bindings = json.loads(manifest.read_text(encoding="utf-8")).get("bindings") or {}
+    except (OSError, json.JSONDecodeError):
+        return set()
+    found = set()
+    raw = bindings.get("lora")
+    for entry in raw if isinstance(raw, list) else [raw]:
+        if isinstance(entry, dict) and entry.get("node"):
+            found.add((str(entry["node"]), str(entry.get("input") or "lora_name")))
+    return found
+
+
 def core_classes() -> set[str]:
     """Class names ComfyUI provides itself.
 
@@ -264,6 +295,20 @@ def previous_links() -> dict[str, str]:
     except (json.JSONDecodeError, OSError):
         return {}
     return {name: e["url"] for name, e in models.items() if e.get("url")}
+
+
+def previous_entries() -> dict[str, dict]:
+    """The catalogue's current model entries, for what this machine cannot see.
+
+    A model that has been moved off this machine still has a size and a folder
+    worth keeping - forgetting them would make Setup promise a 0-byte download.
+    """
+    if not OUT.is_file():
+        return {}
+    try:
+        return json.loads(OUT.read_text(encoding="utf-8")).get("models", {})
+    except (json.JSONDecodeError, OSError):
+        return {}
 
 
 def override_links() -> dict[str, str]:
@@ -478,6 +523,7 @@ def main() -> int:
     graphs = api_graphs()
     core = core_classes()
     kept = previous_links()
+    before = previous_entries()
     overrides = override_links()
     urls = harvest_urls()
     print(f"url sources  : {len(urls)} filenames")
@@ -492,10 +538,13 @@ def main() -> int:
     per_group_classes: dict[str, set[str]] = {}
     for mode in MODE_ORDER:
         names, classes = [], set()
-        for _, graph in graphs.get(mode, []):
-            for node in graph.values():
+        for path, graph in graphs.get(mode, []):
+            skip = optional_inputs(path)
+            for node_id, node in graph.items():
                 classes.add(node["class_type"])
                 for field, value in (node.get("inputs") or {}).items():
+                    if (str(node_id), field) in skip:
+                        continue
                     if field in MODEL_FIELDS and isinstance(value, str) and value.strip():
                         if value not in names:
                             names.append(value)
@@ -535,6 +584,9 @@ def main() -> int:
         entry["dir"] = model_dir(name, path, entry.pop("field", ""))
         if path:
             entry["bytes"] = path.stat().st_size
+        elif before.get(name, {}).get("bytes"):
+            entry["dir"] = before[name].get("dir") or entry["dir"]
+            entry["bytes"] = before[name]["bytes"]
         else:
             missing_file.append(name)
             guessed.append(name)
@@ -567,9 +619,8 @@ def main() -> int:
     catalog = {
         "generated": "tools/make_catalog.py",
         "comfyui": {
-            "version": (COMFY / "ComfyUI/comfyui_version.py").read_text(encoding="utf-8")
-                       .split('"')[1],
-            "commit": snapshot.get("comfyui"),
+            "version": COMFYUI_PIN["version"],
+            "commit": COMFYUI_PIN["commit"],
             "portable": PORTABLE,
         },
         "groups": groups,

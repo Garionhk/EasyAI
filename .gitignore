@@ -41,10 +41,17 @@ easyai-setup.json
 # The real list is setup/catalog.json; this is a per-machine copy of it.
 setup-settings.json
 setup-settings.old.json
+# The model lists ComfyUI last offered, so the Model and LoRA dropdowns work
+# while it is closed. Rewritten every time EasyAI reads the engine.
+engine-models.json
 
 # Everything made with EasyAI: pictures, videos and enhanced prompts. Large,
 # personal, and none of it is source.
 output/
+
+# The workflows exactly as exported from ComfyUI, before they were cleaned up
+# for shipping (personal LoRA, sample boxes and the author's own pictures).
+workflow-originals/
 
 # --- Downloads and staging ------------------------------------------------
 # Gated models copied here before being uploaded to the mirror - tens of GB.

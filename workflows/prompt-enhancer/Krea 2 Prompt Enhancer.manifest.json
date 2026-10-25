@@ -8,6 +8,10 @@
       "node": "3",
       "input": "value"
     },
+    "model": {
+      "node": "8",
+      "input": "clip_name"
+    },
     "enhancer": {
       "node": "1",
       "input": "max_length"
@@ -17,6 +21,7 @@
   "optional_slots": [],
   "length_unit": "frames",
   "fps": null,
+  "grow": [],
   "expose": [
     "prompt"
   ],
