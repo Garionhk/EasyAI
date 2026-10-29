@@ -512,21 +512,27 @@ class GenerateTab(QWidget):
         """The LoRAs worth offering for this workflow's loader.
 
         A LoRA only works with the model family it was trained for, and a
-        collection runs to hundreds. When the model sits in a folder - Moss        - and LoRAs sit in a folder of the same name, those are the ones
-        offered; otherwise everything the engine has.
+        collection runs to hundreds. When the model sits in a folder (Moss)
+        and the LoRAs sit in a folder of the same name, those are the ones
+        offered - subfolders included, since training runs and collections
+        are often kept in folders of their own inside it (Moss/3ll3nchan_v3).
+        Otherwise everything the engine has.
         """
         if not (manifest and manifest.has("lora") and workflow):
             return []
         binding = manifest.get("lora")
         class_type = str((workflow.graph.get(binding.node) or {}).get("class_type") or "")
-        offered = sorted(self._engine_options(class_type, binding.input), key=str.lower)
+        offered = self._engine_options(class_type, binding.input)
         _, own_model = self._model_options(manifest, workflow)
         family = self._family_of(own_model).lower() if own_model else ""
         if family:
-            same = [o for o in offered if self._family_of(o).lower() == family]
+            same = [o for o in offered
+                    if (self._family_of(o).lower() + "/").startswith(family + "/")]
             if same:
-                return same
-        return offered
+                # The family folder's own files first, then each subfolder.
+                return sorted(same, key=lambda o: (self._family_of(o).lower() != family,
+                                                   self._family_of(o).lower(), o.lower()))
+        return sorted(offered, key=str.lower)
 
     def _show_lora(self, manifest, workflow) -> None:
         show = bool(manifest and manifest.has("lora"))

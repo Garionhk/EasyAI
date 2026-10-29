@@ -260,8 +260,8 @@ def test_model_lists_are_remembered_for_when_the_engine_is_closed(tmp_path):
     from app.comfy.objectinfo import remember_model_lists, remembered_options
 
     raw = {"UNETLoader": {"input": {"required": {"unet_name": [[
-        "Moss\moss_image_sft_int8_convrot.safetensors",
-        "Moss\moss_image_base_int8_convrot.safetensors"]]}}}}
+        r"Moss\moss_image_sft_int8_convrot.safetensors",
+        r"Moss\moss_image_base_int8_convrot.safetensors"]]}}}}
     store = tmp_path / "engine-models.json"
     remember_model_lists(Capabilities(node_types=set(raw), raw=raw, available=True), store)
     assert remembered_options("UNETLoader", "unet_name", store) == \
@@ -273,8 +273,8 @@ def test_model_lists_are_remembered_for_when_the_engine_is_closed(tmp_path):
 def test_a_chosen_moss_model_is_written_into_the_loader():
     manifest = Manifest.load(MOSS.with_name(MOSS.stem + ".manifest.json"))
     graph, _ = patch_apply(graph_of(MOSS), manifest, GenerationRequest(
-        prompt="x", model="Moss\moss_image_base_int8_convrot.safetensors"))
-    assert graph["18:1"]["inputs"]["unet_name"] == "Moss\moss_image_base_int8_convrot.safetensors"
+        prompt="x", model=r"Moss\moss_image_base_int8_convrot.safetensors"))
+    assert graph["18:1"]["inputs"]["unet_name"] == r"Moss\moss_image_base_int8_convrot.safetensors"
 
 
 # --- the main model, found the same way for every workflow --------------------
@@ -305,3 +305,24 @@ def test_every_shipped_workflow_names_its_model():
     import glob
     for f in glob.glob(str(ROOT / "workflows" / "*" / "*.manifest.json")):
         assert Manifest.load(f).has("model"), f
+
+
+# --- the LoRA list: the model's folder and its subfolders ----------------------
+def test_loras_in_subfolders_of_the_family_are_offered():
+    from types import SimpleNamespace
+
+    from app.ui.tab_base import GenerateTab
+
+    offered = [r"Anima\a.safetensors", r"Moss\b.safetensors",
+               r"Moss\GarionHK_v3\c.safetensors", r"Moss\3ll3nchan_v3\d.safetensors",
+               r"Mossy\not_this_one.safetensors"]
+    stub = SimpleNamespace(
+        _engine_options=lambda cls, field: offered,
+        _model_options=lambda m, w: ([r"Moss\moss_image_sft_int8_convrot.safetensors"],
+                                     r"Moss\moss_image_sft_int8_convrot.safetensors"),
+        _family_of=GenerateTab._family_of)
+    manifest = Manifest.load(MOSS.with_name(MOSS.stem + ".manifest.json"))
+    workflow = SimpleNamespace(graph=graph_of(MOSS))
+    assert GenerateTab._lora_options(stub, manifest, workflow) == [
+        r"Moss\b.safetensors", r"Moss\3ll3nchan_v3\d.safetensors",
+        r"Moss\GarionHK_v3\c.safetensors"]

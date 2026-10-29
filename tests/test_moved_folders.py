@@ -64,7 +64,7 @@ def test_an_old_folder_that_no_longer_exists_is_left_behind(here, tmp_path):
 
 
 def test_a_folder_chosen_in_settings_is_kept(here, tmp_path):
-    """D:\Renders is someone's choice, not a leftover."""
+    r"""D:\Renders is someone's choice, not a leftover."""
     renders = tmp_path / "Renders"
     renders.mkdir()
     cfg = Config(settings(here, output_dir=str(renders)))

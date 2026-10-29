@@ -1,6 +1,6 @@
 # EasyAI
 
-**v1.2.0** · Windows · Apache 2.0
+**v1.2.1** · Windows · Apache 2.0
 
 A simple desktop front end for ComfyUI, for people who just want to make
 something without learning the node graph. Pick a style, type what you want,
@@ -52,6 +52,14 @@ console window. If Python is missing or too old it says so and links the
 download. `EasyAISetup.bat` and `EasyAI Studio.bat` start the other two.
 
 ---
+
+## What's new in v1.2.1
+
+- **LoRA subfolders** — the LoRA list for MOSS-Image (and any workflow with an
+  optional LoRA) now includes the subfolders of the model's LoRA folder, such
+  as `Moss\GarionHK_v3\`.
+- **The Model and LoRA lists work with ComfyUI closed again** — the saved copy
+  they fall back on could be overwritten with an incomplete list.
 
 ## What's new in v1.2.0
 
