@@ -62,28 +62,28 @@ GATED_REPOS = (
 #: the catalogue may be a few commits ahead (it was 19 past v0.42.0), and
 #: pinning that would hand everyone a build nobody published.
 COMFYUI_PIN = {
-    "version": "0.42.1",
-    "commit": "63be2f9b82ad0dac88a7ceaa28a9cf3154125a18",
+    "version": "0.45.0",
+    "commit": "989d93d0d968e704c589ce0146bb18c77f6b50cc",
 }
 
-#: The portable to install: the v0.42.1 release. Sizes and hashes are GitHub's
+#: The portable to install: the v0.45.0 release. Sizes and hashes are GitHub's
 #: own (the release API's asset digests), so a truncated or substituted archive
 #: is refused before seven minutes of unpacking. ComfyUI's checkout is then
 #: pinned to the exact commit as well.
 PORTABLE = {
-    "release": "v0.42.1",
+    "release": "v0.45.0",
     "asset": "ComfyUI_windows_portable_nvidia.7z",
-    "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.42.1/"
+    "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.45.0/"
            "ComfyUI_windows_portable_nvidia.7z",
-    "bytes": 2018444114,
-    "sha256": "496afd18790ec685d99ebba2edf200d7371a29fbdd3a992bb0f4f52f244a6874",
+    "bytes": 2071479423,
+    "sha256": "60c12e8c7af778047ad0413722dd3dc0f6ca773a41cbf5cb229ee9bc92c44a6f",
     "cuda": "13.0",
     "fallback": {
         "asset": "ComfyUI_windows_portable_nvidia_cu126.7z",
-        "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.42.1/"
+        "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.45.0/"
                "ComfyUI_windows_portable_nvidia_cu126.7z",
-        "bytes": 1910153206,
-        "sha256": "0506abc6563ea5928a052fe0bc0b32c2a063098558bd593fe39345a27f1e47fc",
+        "bytes": 1962803660,
+        "sha256": "e7d1be2bd81deec3f46a89e29b8c6826f45c05609f29d6681d7876f687d69d29",
         "cuda": "12.6",
         "why": "for drivers too old for CUDA 13",
     },

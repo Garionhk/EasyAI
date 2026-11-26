@@ -1,6 +1,6 @@
 # EasyAI
 
-**v1.2.1** · Windows · Apache 2.0
+**v1.2.2** · Windows · Apache 2.0
 
 A simple desktop front end for ComfyUI, for people who just want to make
 something without learning the node graph. Pick a style, type what you want,
@@ -52,6 +52,11 @@ console window. If Python is missing or too old it says so and links the
 download. `EasyAISetup.bat` and `EasyAI Studio.bat` start the other two.
 
 ---
+
+## What's new in v1.2.2
+
+- EasyAI Setup installs **ComfyUI 0.45.0**, or updates an existing ComfyUI to
+  it. Add-ons stay at the versions tested with 0.42.1.
 
 ## What's new in v1.2.1
 
@@ -594,7 +599,7 @@ is, then Install.
 **What it installs** is fixed by `setup/catalog.json`, never "whatever is
 newest", so a viewer can't end up with a combination nobody has tested:
 
-- **ComfyUI 0.42.1.** The official Windows portable (NVIDIA), checked against
+- **ComfyUI 0.45.0.** The official Windows portable (NVIDIA), checked against
   GitHub's SHA-256 before seven minutes of unpacking, then pinned to the exact
   commit.
 - **Only the add-ons the chosen workflows need**, each at the version or
@@ -609,15 +614,15 @@ carries on where it left off — part-finished downloads included.
 
 Point Setup at a folder holding a ComfyUI and it says what it found:
 
-- *ComfyUI 0.42.1 will be installed here* — an empty folder.
-- *✓ ComfyUI 0.42.1 is already here, with EasyAI's add-ons at their tested
+- *ComfyUI 0.45.0 will be installed here* — an empty folder.
+- *✓ ComfyUI 0.45.0 is already here, with EasyAI's add-ons at their tested
   versions* — nothing to do.
-- *Found ComfyUI 0.37.0 here. EasyAI is tested with 0.42.1.* — with a switch:
+- *Found ComfyUI 0.42.1 here. EasyAI is tested with 0.45.0.* — with a switch:
   **Update ComfyUI and EasyAI's add-ons to the tested versions**.
 
 The switch is on for an older ComfyUI and off for a newer one, since someone
 chose that version. Before anything starts, a summary lists exactly what will
-happen — *Move ComfyUI from 0.37.0 to 0.42.1*, *Bring 1 add-on to its tested
+happen — *Move ComfyUI from 0.42.1 to 0.45.0*, *Bring 1 add-on to its tested
 version*, *Download 4 models*.
 
 How the update behaves:

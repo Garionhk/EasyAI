@@ -65,6 +65,7 @@ mirror-staging/
 # version and ARE committed.
 *.lnk
 Thumbs.db
+.DS_Store
 desktop.ini
 
 # --- Credentials ----------------------------------------------------------
