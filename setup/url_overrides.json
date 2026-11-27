@@ -13,7 +13,7 @@
     "Entries set to null still need a URL. Civitai links need an API key and",
     "take the form https://civitai.com/api/download/models/<versionId>."
   ],
-  "flux-2-klein-9b-Q8_0.gguf": "https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q8_0.gguf",
+  "flux-2-klein-9b-Q8_0.gguf": "https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/fde8634245fe6b749a221c25b34672b5b8fbd079/flux-2-klein-9b-Q8_0.gguf",
   "minimax_h3_fl2va_pruned_int8_convrot.safetensors": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
   "gemma4_e2b_it_bf16.safetensors": "https://huggingface.co/Comfy-Org/gemma-4/resolve/main/text_encoders/gemma4_e2b_it_bf16.safetensors",
   "minimax_h3_turbo_4step_ema_ckpt500_pruned_comfyui.safetensors": "https://huggingface.co/drbaph/MiniMax-H3-Turbo-Lora-ComfyUI/resolve/main/minimax_h3_turbo_4step_ema_ckpt500_pruned_comfyui.safetensors",

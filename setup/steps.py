@@ -464,7 +464,8 @@ class Installer:
                 # the end says what is missing and why.
                 self._say("  !! " + t("{name} could not be downloaded",
                                       name=model.filename))
-                self.report.failed.append(f"{model.filename}: {_first_line(e)}")
+                self.report.failed.append(
+                    f"{model.filename}: {getattr(e, 'reason', '') or _first_line(e)}")
 
         for model in blocked:
             if present.get(model.name):
@@ -566,9 +567,14 @@ class Installer:
                     self._say("      " + t(
                         "the mirror failed, trying the original source"))
 
-        raise DownloadError(
+        error = DownloadError(
             t("Could not get {name} from any source.", name=model.filename)
             + "\n\n" + "\n\n".join(problems))
+        # The summary has room for one line per model. "From any source" says
+        # nothing the user can act on; the last source's own headline does -
+        # "needs a HuggingFace account", "finished at the wrong size".
+        error.reason = _first_line(problems[-1].split(": ", 1)[-1]) if problems else ""
+        raise error
 
     def write_licences(self) -> None:
         """Save the licences that come with anything installed from the mirror.
@@ -751,9 +757,10 @@ def remove_tree(path: Path) -> None:
         shutil.rmtree(path, onerror=unlock)
 
 
-def _first_line(error: Exception) -> str:
+def _first_line(error: Exception | str) -> str:
     """The headline of a multi-paragraph download error, for the summary list."""
-    return str(error).strip().splitlines()[0]
+    lines = str(error).strip().splitlines()
+    return lines[0] if lines else ""
 
 
 def unpack(archive: Path, destination: Path) -> None:

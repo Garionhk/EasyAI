@@ -244,6 +244,22 @@ def test_a_wrong_size_is_refused_and_the_bytes_kept(tmp_path, monkeypatch, paylo
     assert target.with_suffix(".safetensors.part").exists()
 
 
+def test_a_part_file_longer_than_the_model_is_started_over(tmp_path, monkeypatch, payload):
+    """The link moved to another build since the part file was started.
+
+    Resuming would ask for bytes past the end, the server would call it
+    complete, and the size check would fail on every run for ever.
+    """
+    session = _serve(monkeypatch, FakeSession(payload))
+    target = tmp_path / "model.safetensors"
+    (tmp_path / "model.safetensors.part").write_bytes(payload + b"another build")
+
+    dl.download("http://example/model", target, expected_bytes=len(payload))
+
+    assert target.read_bytes() == payload
+    assert "Range" not in session.requests[0]
+
+
 def test_a_bad_checksum_is_discarded(tmp_path, monkeypatch, payload):
     _serve(monkeypatch, FakeSession(payload))
     target = tmp_path / "model.safetensors"
@@ -470,6 +486,20 @@ def test_falling_back_discards_the_failed_source_part_file(tmp_path, catalog,
 
     assert len(seen) == 2
     assert seen[1][1] == 0, "the origin resumed from the mirror's part file"
+
+
+def test_the_summary_says_why_a_model_failed(tmp_path, catalog, monkeypatch):
+    """"Could not get it from any source" gives the user nothing to act on."""
+    def fake_download(url, target, **kw):
+        raise dl.DownloadError(f"{Path(target).name} needs a HuggingFace account."
+                               + chr(10) * 2 + "1. Sign in...")
+
+    monkeypatch.setattr("setup.steps.download", fake_download)
+    model = catalog.models_for(["video"])[0]
+    installer = Installer(catalog, tmp_path, ["video"])
+    with pytest.raises(dl.DownloadError) as caught:
+        installer._fetch_model(model, tmp_path / model.filename)
+    assert caught.value.reason == f"{model.filename} needs a HuggingFace account."
 
 
 def test_one_unobtainable_model_does_not_sink_the_whole_install(tmp_path, catalog,

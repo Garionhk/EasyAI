@@ -1,6 +1,6 @@
 # EasyAI
 
-**v1.2.2** · Windows · Apache 2.0
+**v1.2.3** · Windows · Apache 2.0
 
 A simple desktop front end for ComfyUI, for people who just want to make
 something without learning the node graph. Pick a style, type what you want,
@@ -52,6 +52,17 @@ console window. If Python is missing or too old it says so and links the
 download. `EasyAISetup.bat` and `EasyAI Studio.bat` start the other two.
 
 ---
+
+## What's new in v1.2.3
+
+- **Flux 2 Klein downloads again** — the GGUF model was replaced upstream with a
+  new build of a different size. Setup now fetches the exact build the
+  workflows were made with, and starts over if a part-finished download
+  belongs to another build.
+- **Setup says why a download failed** — "needs a HuggingFace account" or
+  "finished at the wrong size", instead of "could not get it from any
+  source". The Flux 3 Klein files need a HuggingFace account with the
+  licence accepted on Black Forest Labs' model page.
 
 ## What's new in v1.2.2
 

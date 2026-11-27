@@ -147,6 +147,13 @@ def download(
             on_progress(Progress(size, size, name=target.name))
         return target
 
+    # A part file already longer than the whole download is another build of
+    # the model - the link was moved to a different revision since it was
+    # started. Resuming would ask for bytes past the end, the server would say
+    # it is complete, and the size check would fail on every run for ever.
+    if expected_bytes and part.is_file() and part.stat().st_size > expected_bytes:
+        part.unlink()
+
     session = _session(token)
     last_error = ""
 
