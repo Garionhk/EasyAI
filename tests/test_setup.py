@@ -822,3 +822,85 @@ def test_the_workflows_folder_is_pointed_at_the_copied_ones(tmp_path, catalog,
 
     saved = json.loads(settings.read_text(encoding="utf-8"))
     assert saved["workflow_dir"] == str(installer.target / "EasyAI-workflows")
+
+
+# --- the programs go into the install folder first ----------------------------
+def _frozen_at(monkeypatch, folder: Path) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    for name in ("EasyAI Setup.exe", "EasyAI.exe"):
+        (folder / name).write_bytes(name.encode() * 100)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(folder / "EasyAI Setup.exe"))
+
+
+def test_the_programs_are_copied_into_the_install_folder(tmp_path, catalog, monkeypatch):
+    """Setup is run from the unzipped download, which then gets deleted."""
+    download_dir = tmp_path / "Downloads" / "EasyAI - V1.2.3"
+    _frozen_at(monkeypatch, download_dir)
+    (download_dir / "setup-settings.json").write_text("{}", encoding="utf-8")
+    target = tmp_path / "AI"
+
+    installer = Installer(catalog, target, ["image"])
+    installer.copy_programs()
+
+    for name in ("EasyAI Setup.exe", "EasyAI.exe", "setup-settings.json"):
+        assert (target / name).read_bytes() == (download_dir / name).read_bytes()
+    assert "EasyAI.exe" in installer.report.done
+
+
+def test_copying_comes_before_comfyui(catalog, tmp_path):
+    order = [s.__name__ for s in (Installer(catalog, tmp_path, ["image"]).check_space,
+                                   Installer(catalog, tmp_path, ["image"]).copy_programs)]
+    import inspect
+    source = inspect.getsource(Installer.run)
+    assert source.index("copy_programs") < source.index("install_comfyui") \
+        < source.index("install_models")
+    assert order == ["check_space", "copy_programs"]
+
+
+def test_an_edited_install_list_in_the_folder_is_kept(tmp_path, catalog, monkeypatch):
+    download_dir = tmp_path / "dl"
+    _frozen_at(monkeypatch, download_dir)
+    (download_dir / "setup-settings.json").write_text('{"new": 1}', encoding="utf-8")
+    target = tmp_path / "AI"
+    target.mkdir()
+    (target / "setup-settings.json").write_text('{"mine": 1}', encoding="utf-8")
+
+    Installer(catalog, target, ["image"]).copy_programs()
+    assert (target / "setup-settings.json").read_text(encoding="utf-8") == '{"mine": 1}'
+
+
+def test_nothing_is_copied_when_setup_already_runs_from_the_folder(tmp_path, catalog,
+                                                                   monkeypatch):
+    _frozen_at(monkeypatch, tmp_path / "AI")
+    installer = Installer(catalog, tmp_path / "AI", ["image"])
+    installer.copy_programs()
+    assert installer.report.done == [] and installer.report.failed == []
+
+
+def test_nothing_is_copied_from_source(tmp_path, catalog, monkeypatch):
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    installer = Installer(catalog, tmp_path / "AI", ["image"])
+    installer.copy_programs()
+    assert installer.report.done == []
+
+
+def test_the_copied_easyai_is_set_up_too(tmp_path, catalog, monkeypatch):
+    """Otherwise the EasyAI in the install folder opens asking for a path."""
+    import app.config as config
+
+    _frozen_at(monkeypatch, tmp_path / "dl")
+    settings = tmp_path / "dl" / "settings.json"
+    monkeypatch.setattr(config, "SETTINGS_PATH", settings)
+    target = tmp_path / "AI"
+
+    installer = Installer(catalog, target, ["image"])
+    installer.copy_programs()
+    installer.python.parent.mkdir(parents=True, exist_ok=True)
+    installer.python.write_bytes(b"")
+    installer.configure_easyai()
+
+    for path in (settings, target / "settings.json"):
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        assert saved["comfyui_dir"] == str(installer.portable)
+        assert saved["first_run_done"] is True

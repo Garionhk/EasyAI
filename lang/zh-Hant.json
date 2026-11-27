@@ -229,6 +229,8 @@
   "{name} already here": "{name} 已經存在",
   "{name} failed: {problem}": "{name} 安裝失敗：{problem}",
   "{name} could not be downloaded": "{name} 無法下載",
+  "Copied {name} to {folder}": "已將 {name} 複製到 {folder}",
+  "could not copy {name}: {problem}": "無法複製 {name}：{problem}",
   "the mirror failed, trying the original source": "鏡像伺服器失敗，改用原始來源",
   "{n} model": "{n} 個模型",
   "{n} models": "{n} 個模型",

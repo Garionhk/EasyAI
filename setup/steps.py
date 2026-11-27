@@ -36,6 +36,10 @@ STATE_FILE = "easyai-setup.json"
 
 #: Where the extracted portable puts things.
 COMFY_SUB = "ComfyUI_windows_portable"
+#: The programs copied into the install folder, so it is complete on its own.
+PROGRAMS = ("EasyAI Setup.exe", "EasyAI.exe")
+#: An edited install list beside Setup, carried along with it.
+INSTALL_LIST = "setup-settings.json"
 
 _7ZIP_CANDIDATES = (
     Path(r"C:\Program Files\7-Zip\7z.exe"),
@@ -128,6 +132,9 @@ class Installer:
         self.download_models = download_models
         #: Set when this run unpacked a new ComfyUI - that one is ours to pin.
         self._fresh = False
+        #: Set when EasyAI.exe was copied into the install folder, so its
+        #: settings are written there too.
+        self._programs_here = False
         #: Kept in memory for the run only - never written to disk, because a
         #: token in a config file outlives the reason it was needed.
         self.tokens = {"HuggingFace": hf_token, "Civitai": civitai_token}
@@ -155,7 +162,8 @@ class Installer:
 
     # -- the run -----------------------------------------------------------
     def run(self) -> Report:
-        for step in (self.check_space, self.install_comfyui, self.pin_comfyui_commit,
+        for step in (self.check_space, self.copy_programs, self.install_comfyui,
+                     self.pin_comfyui_commit,
                      self.install_nodes, self.install_models, self.copy_workflows,
                      self.configure_easyai):
             if self._stop():
@@ -189,6 +197,50 @@ class Installer:
                 "This selection needs about {needed} and {free} is free. Pick "
                 "another folder, or untick a group.",
                 needed=human_bytes(needed), free=human_bytes(free)))
+
+    # -- 1b. the programs themselves ---------------------------------------
+    def _running_from(self) -> Path | None:
+        """The folder this Setup's .exe sits in, or None when run from source."""
+        if not getattr(sys, "frozen", False):
+            return None
+        return Path(sys.executable).resolve().parent
+
+    def copy_programs(self) -> None:
+        """Put EasyAI Setup.exe and EasyAI.exe in the install folder first.
+
+        Setup is usually run straight from the unzipped download, which then
+        gets deleted - leaving a ComfyUI with nothing beside it to open it
+        with. Copying them in before the long downloads means the folder is
+        complete even if the install is stopped half way.
+        """
+        here = self._running_from()
+        self.target.mkdir(parents=True, exist_ok=True)
+        if here is None or here == self.target.resolve():
+            return
+        for name in PROGRAMS + (INSTALL_LIST,):
+            source, destination = here / name, self.target / name
+            if not source.is_file():
+                continue
+            # Someone's own edited install list in the folder is theirs.
+            if name == INSTALL_LIST and destination.exists():
+                continue
+            if (destination.is_file()
+                    and destination.stat().st_size == source.stat().st_size
+                    and int(destination.stat().st_mtime) == int(source.stat().st_mtime)):
+                self._programs_here = self._programs_here or name == "EasyAI.exe"
+                continue
+            try:
+                shutil.copy2(source, destination)
+            except OSError as e:
+                # Most likely the copy already there is open. Not worth
+                # stopping a ComfyUI install for.
+                self._say("  !! " + t("could not copy {name}: {problem}",
+                                      name=name, problem=e))
+                self.report.failed.append(f"{name}: {e}")
+                continue
+            self._say(t("Copied {name} to {folder}", name=name, folder=self.target))
+            self.report.done.append(name)
+            self._programs_here = self._programs_here or name == "EasyAI.exe"
 
     # -- 2. ComfyUI portable ----------------------------------------------
     def install_comfyui(self) -> None:
@@ -674,29 +726,38 @@ class Installer:
             self._say(t("Skipping EasyAI setup - ComfyUI is not installed here"))
             return
 
-        cfg = Config(SETTINGS_PATH)
-        was = str(cfg.get("comfyui_dir") or "")
-
-        cfg.set("comfyui_dir", str(self.portable))
         launchers = ComfyLauncher(self.portable, "", None).find_launchers()
-        if launchers:
-            cfg.set("comfyui_launcher", launchers[0])
-
         # The workflows were copied in beside the install; point EasyAI at that
         # copy rather than leaving it looking at an empty folder.
         workflows = self.catalog.workflows_root(self.target)
-        if any(workflows.glob("*/*.json")):
-            cfg.set("workflow_dir", str(workflows))
+        has_workflows = any(workflows.glob("*/*.json"))
 
-        # The welcome message exists to make someone set the ComfyUI folder.
-        # That is now done, so showing it would ask for work already finished.
-        cfg.set("first_run_done", True)
-        cfg.save()
+        # The EasyAI beside this Setup, and the copy put in the install folder.
+        paths = [Path(SETTINGS_PATH)]
+        copied = self.target / Path(SETTINGS_PATH).name
+        if self._programs_here and copied.resolve() != paths[0].resolve():
+            paths.append(copied)
 
-        self._say(t("EasyAI is now set to use this ComfyUI"))
-        self._say(f"    {SETTINGS_PATH}")
-        if was and was != str(self.portable):
-            self._say(t("    it previously pointed at {old}", old=was))
+        for path in paths:
+            cfg = Config(path)
+            was = str(cfg.get("comfyui_dir") or "")
+
+            cfg.set("comfyui_dir", str(self.portable))
+            if launchers:
+                cfg.set("comfyui_launcher", launchers[0])
+            if has_workflows:
+                cfg.set("workflow_dir", str(workflows))
+
+            # The welcome message exists to make someone set the ComfyUI
+            # folder. That is now done, so showing it would ask for work
+            # already finished.
+            cfg.set("first_run_done", True)
+            cfg.save()
+
+            self._say(t("EasyAI is now set to use this ComfyUI"))
+            self._say(f"    {path}")
+            if was and was != str(self.portable):
+                self._say(t("    it previously pointed at {old}", old=was))
         self.report.done.append("easyai-settings")
 
     # -- state -------------------------------------------------------------

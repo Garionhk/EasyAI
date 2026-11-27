@@ -63,6 +63,10 @@ download. `EasyAISetup.bat` and `EasyAI Studio.bat` start the other two.
   "finished at the wrong size", instead of "could not get it from any
   source". The Flux 3 Klein files need a HuggingFace account with the
   licence accepted on Black Forest Labs' model page.
+- **The install folder is complete on its own** — EasyAI Setup copies
+  `EasyAI Setup.exe` and `EasyAI.exe` into the folder you install to before it
+  installs ComfyUI and the models, and sets that copy of EasyAI up as well. The
+  unzipped download can be deleted afterwards.
 
 ## What's new in v1.2.2
 
